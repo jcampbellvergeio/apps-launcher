@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en" data-page="{{ page }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}App Launcher{% endblock %}</title>
+  <link rel="icon" href="{{ url_for('static', filename='icons/launcher.svg') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <script>
+    /* Restore the collapsed state before first paint, so a rail user doesn't
+       see the wide menu flash on every page load. Storage can throw in a
+       locked-down browser, hence the catch. */
+    try {
+      if (localStorage.getItem('devapps.rail') === '1') {
+        document.documentElement.classList.add('rail');
+      }
+    } catch (e) { /* no stored preference; the default width is fine */ }
+  </script>
+</head>
+<body>
+  <!-- The rail is always present; `html.rail` collapses it to icons only.
+       The class is set by the inline script above before first paint, and
+       toggled by app.js thereafter. -->
+  <aside class="side">
+    <div class="side-top">
+      <a class="brand" href="/" title="App Launcher">
+        <img class="ico" src="{{ url_for('static', filename='icons/launcher.svg') }}" alt="">
+        <span class="label">App Launcher</span>
+      </a>
+      <!-- One button, both directions: it stays in the menu header in either
+           state so it doesn't move when the menu collapses. -->
+      <button class="collapse" id="toggle" title="Collapse menu" aria-label="Collapse menu">
+        <span class="when-wide" aria-hidden="true">&#8249;</span>
+        <span class="when-rail" aria-hidden="true">&#8250;</span>
+      </button>
+    </div>
+
+    <nav class="side-nav">
+      <a href="/" class="side-item {{ 'on' if page == 'apps' }}" title="Apps">
+        <span class="glyph" aria-hidden="true">&#9635;</span>
+        <span class="label">Apps</span>
+      </a>
+      <a href="/status" class="side-item {{ 'on' if page == 'status' }}" title="Status">
+        <span class="glyph" aria-hidden="true">&#9678;</span>
+        <span class="label">Status</span>
+      </a>
+    </nav>
+
+    <div class="side-label"><span class="label">Apps</span></div>
+    <!-- Filled by app.js so the status dots stay live. -->
+    <nav class="side-apps" id="side-apps"></nav>
+
+    <div class="side-foot">
+      <button class="side-item add-item" id="side-add" title="Register an app">
+        <span class="glyph" aria-hidden="true">+</span>
+        <span class="label">Register an app</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="content">
+    <!-- One bar: fleet controls on the left, then whatever is selected, with
+         that app's own controls on the right. The viewer used to carry a second
+         header of its own directly under this one. -->
+    <header class="topbar">
+      <div class="topbar-id first">
+        <img class="tb-icon" id="tb-icon" src="" alt="" hidden>
+        <div class="tb-text">
+          <span class="tb-name" id="tb-name">Apps</span>
+          <span class="tb-meta" id="tb-meta"></span>
+        </div>
+      </div>
+
+      <div class="topbar-actions" id="topbar-actions"></div>
+      <span id="tick" class="tick"></span>
+    </header>
+
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-inner">
+      <div class="sheet-head">
+        <h2 id="sheet-title">Output</h2>
+        <button class="btn ghost" id="sheet-close">Close</button>
+      </div>
+      <pre id="sheet-body"></pre>
+    </div>
+  </div>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

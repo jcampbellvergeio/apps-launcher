@@ -1,0 +1,22 @@
+# Runtime state
+logs/
+state/
+__pycache__/
+
+# Your own registry and its backups: apps.json is seeded from
+# apps.example.json on first run and stays local.
+apps.json
+apps.json.bak
+apps.json.tmp
+
+# Private working notes
+MEMORY.md
+
+# Icons named after your own apps stay local; the shipped set is listed below.
+static/icons/*.svg
+!static/icons/default.svg
+!static/icons/launcher.svg
+!static/icons/inbox.svg
+!static/icons/gauge.svg
+!static/icons/braces.svg
+!static/icons/calendar.svg

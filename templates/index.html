@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}App Launcher{% endblock %}
+
+{% block content %}
+<!-- Tiles are rendered by app.js from /api/status so the markup lives in one
+     place; this is just the first paint's data, to avoid a blank flash. -->
+<script id="initial-data" type="application/json">{{ apps | tojson }}</script>
+
+<!-- The launcher's own controls. This view IS the launcher's "app", which is
+     why the fleet-wide buttons live here rather than in the shared topbar. -->
+<section id="dash" class="dash">
+  <div class="dash-tools">
+    <button class="btn primary" data-action="start" data-name="">Start all</button>
+    <button class="btn" id="refresh">Refresh</button>
+    <button class="btn" id="dash-add">+ Register an app</button>
+    <span class="dash-count" id="dash-count"></span>
+    <div class="viewswitch" role="group" aria-label="Layout">
+      <button class="btn" id="view-list" data-view="list">List</button>
+      <button class="btn" id="view-grid" data-view="grid">Tiles</button>
+    </div>
+    <a class="btn ghost" href="/status">Status table</a>
+  </div>
+  <p class="dash-hint">
+    Click an app to open it here. Drag the rows in the menu to reorder them --
+    that order is what the logon task starts in.
+  </p>
+</section>
+
+<!-- Two layouts over the same data: a management list (default) and the tile
+     grid. Both are rendered by app.js from /api/status. -->
+<section id="list" class="applist"></section>
+<section id="grid" class="grid" hidden></section>
+
+<!-- Viewer: the selected app embedded in place. Shown instead of the grid when
+     the hash is #/app/<name>. The iframe's src is only touched when the target
+     app changes, so the 8s status poll never reloads the app under you. -->
+<section id="viewer" class="viewer" hidden>
+  <p class="viewer-note" id="viewer-note" hidden></p>
+  <div class="viewer-body">
+    <iframe id="viewer-frame" title="App" src="about:blank"
+            referrerpolicy="no-referrer"></iframe>
+    <div class="viewer-empty" id="viewer-empty" hidden></div>
+  </div>
+</section>
+
+<dialog id="add-dialog">
+  <form id="add-form" method="dialog">
+    <h2 id="form-title">Register an app</h2>
+    <p class="hint" id="form-hint">Written to <code>apps.json</code>, so it starts at
+      logon too.</p>
+
+    <label>Name
+      <input name="name" required placeholder="myapp" pattern="[a-z0-9][a-z0-9._\-]*"
+             title="lowercase letters, digits, dot, underscore, hyphen">
+      <small id="name-help">Lowercase. Used for the log filenames and the CLI.</small>
+    </label>
+
+    <label>Path
+      <input name="dir" required placeholder="MyApp  or  C:\path\to\MyApp">
+      <small>Folder name under <code>dev/</code>, or a full path. Must exist.</small>
+    </label>
+
+    <div class="row">
+      <label>Command
+        <input name="command" value="python" required>
+      </label>
+      <label>Arguments
+        <input name="args" placeholder="app.py">
+      </label>
+    </div>
+
+    <div class="row">
+      <label>Port
+        <input name="port" type="number" min="1" max="65535" placeholder="5061">
+        <small>Blank if it isn't a server.</small>
+      </label>
+      <label>URL
+        <input name="url" placeholder="auto from port">
+      </label>
+    </div>
+
+    <label>Description
+      <input name="description" placeholder="what it is">
+    </label>
+
+    <label>Match pattern <span class="opt">optional</span>
+      <input name="match" placeholder="derived from path + arguments">
+      <small>Regex vs the process command line. No backslashes &mdash; use
+        <code>.</code> for the path separator, <code>[.]</code> for a dot.</small>
+    </label>
+
+    <label class="check">
+      <input type="checkbox" name="autostart" checked>
+      Start at logon
+    </label>
+
+    <p class="err" id="add-err" hidden></p>
+
+    <div class="sheet-head end">
+      <button type="button" class="btn ghost" id="add-cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="form-submit">Add app</button>
+    </div>
+  </form>
+</dialog>
+{% endblock %}

@@ -1,0 +1,47 @@
+{
+    "_comment": "Registry of local dev apps. Copy to apps.json (the launcher does this for you on first run). Liveness is judged first by `match` (a regex against process command lines, the reliable signal), then by `port`. Set autostart:false to keep an app registered but out of the logon run.",
+    "apps": [
+        {
+            "name": "launcher",
+            "dir": "launcher",
+            "command": "python",
+            "args": [
+                "app.py"
+            ],
+            "port": 5058,
+            "url": "http://127.0.0.1:5058/",
+            "autostart": true,
+            "description": "This page - list, status and registration for the other apps",
+            "match": "launcher.app[.]py",
+            "type": "self"
+        },
+        {
+            "name": "example-api",
+            "dir": "ExampleApi",
+            "command": "python",
+            "args": [
+                "app.py"
+            ],
+            "port": 5061,
+            "url": "http://127.0.0.1:5061/",
+            "autostart": true,
+            "description": "An example Flask app, one folder up from launcher/",
+            "match": "ExampleApi.app[.]py",
+            "type": "app"
+        },
+        {
+            "name": "example-node",
+            "dir": "ExampleNode",
+            "command": "node",
+            "args": [
+                "server.js"
+            ],
+            "port": 5062,
+            "url": "http://127.0.0.1:5062/",
+            "autostart": false,
+            "description": "Anything you can start from a command line works",
+            "match": "ExampleNode.server[.]js",
+            "type": "app"
+        }
+    ]
+}
