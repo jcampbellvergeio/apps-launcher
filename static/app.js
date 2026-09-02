@@ -12,6 +12,7 @@
 const POLL_MS = 8000;   // a status sweep walks every process on the box; don't churn
 const RAIL_KEY = 'devapps.rail';
 const VIEW_KEY = 'devapps.view';   // 'list' (default) or 'grid'
+const GROUPS_KEY = 'devapps.groups'; // which sidebar groups are collapsed
 const FRAME_GRACE_MS = 6000;
 
 let apps = [];
@@ -57,6 +58,38 @@ function openGrid() {
   history.replaceState(null, '', window.location.pathname);
   render();
 }
+
+/* ---------------------------------------------------------------- groups */
+
+/* Which sidebar groups are folded away, remembered per browser. */
+let collapsedGroups = {};
+try {
+  collapsedGroups = JSON.parse(localStorage.getItem(GROUPS_KEY) || '{}');
+} catch { collapsedGroups = {}; }
+
+function applyGroups() {
+  ['apps', 'files'].forEach(name => {
+    const head = document.querySelector('.side-label[data-group="' + name + '"]');
+    const nav = $('#side-' + name);
+    if (!head || !nav) return;
+    const folded = !!collapsedGroups[name];
+    head.classList.toggle('collapsed', folded);
+    nav.classList.toggle('collapsed', folded);
+    const toggle = head.querySelector('.label-toggle');
+    if (toggle) {
+      toggle.setAttribute('aria-expanded', String(!folded));
+      toggle.title = folded ? 'Expand this group' : 'Collapse this group';
+    }
+  });
+}
+
+$$('[data-toggle]').forEach(btn => btn.addEventListener('click', () => {
+  const name = btn.dataset.toggle;
+  collapsedGroups[name] = !collapsedGroups[name];
+  try { localStorage.setItem(GROUPS_KEY, JSON.stringify(collapsedGroups)); }
+  catch { /* the fold just will not be remembered */ }
+  applyGroups();
+}));
 
 /* ------------------------------------------------------------------ rail */
 
@@ -152,9 +185,10 @@ function renderSidebar(route) {
   processes.forEach(a => appsNav.appendChild(sidebarItem(a, route)));
   files.forEach(a => filesNav.appendChild(sidebarItem(a, route)));
 
-  // With nothing registered, the heading would just be noise.
-  $('#files-label').hidden = files.length === 0;
+  // The heading stays whether or not anything is registered: its + is the
+  // only way to add the first document.
   filesNav.hidden = files.length === 0;
+  applyGroups();
 }
 
 /* Drag to reorder. Registry order is menu order, so a drop writes the new
@@ -990,7 +1024,10 @@ function openForm(app, kind) {
   dialog.showModal();
 }
 
-$('#side-add').addEventListener('click', () => openForm(null, 'app'));
+$$('[data-add]').forEach(btn => btn.addEventListener('click', (ev) => {
+  ev.stopPropagation();
+  openForm(null, btn.dataset.add);
+}));
 
 const settingsBtn = $('#side-settings');
 if (settingsBtn) settingsBtn.addEventListener('click', () => {

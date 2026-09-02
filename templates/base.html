@@ -35,21 +35,33 @@
       </button>
     </div>
 
-    <div class="side-label"><span class="label">Apps</span></div>
+    <!-- Each heading carries the add button for its own kind, so the verb sits
+         next to the thing it acts on. Both headings stay put even when empty:
+         with nothing registered, the + is the only way to add the first one. -->
+    <div class="side-label" data-group="apps">
+      <button class="label-toggle" data-toggle="apps" aria-expanded="true"
+              title="Collapse this group">
+        <span class="caret" aria-hidden="true">&#9662;</span>
+        <span class="label">Apps</span>
+      </button>
+      <button class="label-add" data-add="app" title="Register an app"
+              aria-label="Register an app">+</button>
+    </div>
     <!-- Filled by app.js so the status dots stay live. -->
     <nav class="side-apps" id="side-apps"></nav>
 
-    <!-- Documents are a different kind of thing: no status, nothing to start.
-         Both this label and the list hide themselves when none are registered. -->
-    <div class="side-label" id="files-label" hidden><span class="label">Files</span></div>
-    <nav class="side-apps" id="side-files" hidden></nav>
+    <div class="side-label" id="files-label" data-group="files">
+      <button class="label-toggle" data-toggle="files" aria-expanded="true"
+              title="Collapse this group">
+        <span class="caret" aria-hidden="true">&#9662;</span>
+        <span class="label">Files</span>
+      </button>
+      <button class="label-add" data-add="file" title="Add a file"
+              aria-label="Add a file">+</button>
+    </div>
+    <nav class="side-apps" id="side-files"></nav>
 
     <div class="side-foot">
-      <button class="side-item add-item" id="side-add"
-              title="Register an app (a process to start and stop)">
-        <span class="glyph" aria-hidden="true">+</span>
-        <span class="label">Register an app</span>
-      </button>
       <button class="side-item" id="side-settings"
               title="Launcher settings -- port, path, command">
         <span class="glyph" aria-hidden="true">&#9881;</span>

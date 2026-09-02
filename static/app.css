@@ -112,12 +112,35 @@ a { color: var(--accent); }
 .side-apps { overflow-y: auto; padding-top: 0; }
 
 .side-label {
-  padding: 10px 14px 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 8px 4px 14px;
+}
+.label-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--off);
+  font: inherit;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: .07em;
+  cursor: pointer;
+  min-width: 0;
 }
+.label-toggle:hover { color: var(--dim); }
+.caret { display: inline-block; font-size: 9px; transition: transform .12s ease; }
+.side-label.collapsed .caret { transform: rotate(-90deg); }
+
+/* Collapsing hides the group -- except in rail mode, where the heading is a
+   bare spacer, so a collapsed group could never be reopened. */
+.side-apps.collapsed { display: none; }
+.rail .side-apps.collapsed { display: flex; }
+.rail .label-toggle { pointer-events: none; }
 
 .side-item {
   position: relative;
@@ -184,6 +207,26 @@ a { color: var(--accent); }
 }
 /* In rail mode there is no room for the name, so just the number, centred. */
 .rail .side-version { padding: 6px 0 2px; text-align: center; font-size: 10px; }
+/* The + belongs to its heading: small, quiet until hovered, and gone in rail
+   mode where the heading collapses to a spacer. */
+.label-add {
+  margin-left: auto;
+  width: 20px; height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--dim);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.label-add:hover { color: var(--accent); border-color: #26445f; background: var(--panel-2); }
+.rail .label-add { display: none; }
+
 .add-item { color: var(--accent); }
 /* The gear sits with the add button; neither is a navigation target, so they
    read as controls rather than list entries. */

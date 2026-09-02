@@ -59,7 +59,14 @@ brings the page up with everything else.
 
 **Left menu**: every app with its icon and a live status dot, polled every 8
 seconds. A document's dot is green while its file is there and red once it
-isn't. `‹` collapses it to
+isn't.
+
+The **Apps** and **Files** headings each carry the `+` for their own kind, so
+the verb sits beside the thing it acts on, and each folds away by a click on the
+heading — remembered per browser. Both headings stay put when empty, because the
+`+` is then the only way to add the first one. (Folding is ignored in rail mode:
+the heading collapses to a spacer there, so a folded group could never be
+reopened.) `‹` collapses it to
 an icon rail (remembered per browser); drag the rows to reorder them, which also
 sets the order the logon task starts them in.
 
