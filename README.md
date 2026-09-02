@@ -1,5 +1,7 @@
 # Apps Launcher
 
+[![CI](https://github.com/jcampbellvergeio/apps-launcher/actions/workflows/ci.yml/badge.svg)](https://github.com/jcampbellvergeio/apps-launcher/actions/workflows/ci.yml)
+
 Starts the local apps you otherwise launch by hand after every reboot, and gives
 you a page to see and control them: one registry file, one Python engine, an
 autostart entry for your platform, and a small Flask UI.
