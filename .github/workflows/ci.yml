@@ -59,7 +59,11 @@ jobs:
             sleep 1
           done
           curl -sf "http://127.0.0.1:5199/"            -o /dev/null -w 'index  %{http_code}\n'
-          curl -sf "http://127.0.0.1:5199/status"      -o /dev/null -w 'status %{http_code}\n'
+          # The status page was removed in v1.2.0. Assert it stays removed,
+          # rather than fetching it with curl -f, which fails on the 404.
+          code=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:5199/status")
+          if [ "$code" != "404" ]; then echo "unexpected $code from /status"; exit 1; fi
+          echo "status page absent (404), as intended"
           curl -sf "http://127.0.0.1:5199/api/status"  | python -c "import sys,json; d=json.load(sys.stdin); print('apps:', [a['name'] for a in d['apps']]); print('version:', d['launcher_version'])"
           curl -sf "http://127.0.0.1:5199/api/versions" | python -c "import sys,json; print('versions ok:', json.load(sys.stdin)['ok'])"
 
