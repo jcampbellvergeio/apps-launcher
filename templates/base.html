@@ -35,13 +35,6 @@
       </button>
     </div>
 
-    <nav class="side-nav">
-      <a href="/" class="side-item {{ 'on' if page == 'apps' }}" title="Apps">
-        <span class="glyph" aria-hidden="true">&#9635;</span>
-        <span class="label">Apps</span>
-      </a>
-    </nav>
-
     <div class="side-label"><span class="label">Apps</span></div>
     <!-- Filled by app.js so the status dots stay live. -->
     <nav class="side-apps" id="side-apps"></nav>
@@ -56,6 +49,11 @@
               title="Register an app (a process to start and stop)">
         <span class="glyph" aria-hidden="true">+</span>
         <span class="label">Register an app</span>
+      </button>
+      <button class="side-item" id="side-settings"
+              title="Launcher settings -- port, path, command">
+        <span class="glyph" aria-hidden="true">&#9881;</span>
+        <span class="label">Launcher settings</span>
       </button>
       <div class="side-version" id="side-version" title="App Launcher version"></div>
     </div>

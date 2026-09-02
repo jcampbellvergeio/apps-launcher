@@ -185,6 +185,11 @@ a { color: var(--accent); }
 /* In rail mode there is no room for the name, so just the number, centred. */
 .rail .side-version { padding: 6px 0 2px; text-align: center; font-size: 10px; }
 .add-item { color: var(--accent); }
+/* The gear sits with the add button; neither is a navigation target, so they
+   read as controls rather than list entries. */
+#side-settings { color: var(--dim); }
+#side-settings:hover { color: var(--text); }
+#side-settings .glyph { color: var(--dim); font-size: 14px; }
 .add-item .glyph { font-size: 17px; }
 
 /* ------------------------------------------------------------------ topbar */

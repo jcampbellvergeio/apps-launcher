@@ -145,7 +145,9 @@ function renderSidebar(route) {
   appsNav.textContent = '';
   filesNav.textContent = '';
 
-  const processes = apps.filter(a => !a.is_file);
+  // The launcher is the thing you are using, not one of the apps it manages;
+  // its own port, path and logs live behind Launcher settings instead.
+  const processes = apps.filter(a => !a.is_file && !a.is_self);
   const files = apps.filter(a => a.is_file);
   processes.forEach(a => appsNav.appendChild(sidebarItem(a, route)));
   files.forEach(a => filesNav.appendChild(sidebarItem(a, route)));
@@ -514,7 +516,7 @@ function renderList() {
 
   // Documents last, behind a divider: they have no status and nothing to
   // start, so mixing them into the app rows makes both harder to read.
-  const processes = apps.filter(a => !a.is_file);
+  const processes = apps.filter(a => !a.is_file && !a.is_self);
   const files = apps.filter(a => a.is_file);
   const ordered = [...processes, ...files];
   let dividerDone = false;
@@ -667,7 +669,8 @@ function renderGrid() {
   const grid = $('#grid');
   grid.textContent = '';
   // Documents after the apps here too, for the same reason.
-  [...apps.filter(a => !a.is_file), ...apps.filter(a => a.is_file)]
+  [...apps.filter(a => !a.is_file && !a.is_self),
+   ...apps.filter(a => a.is_file)]
     .forEach(a => grid.appendChild(tile(a)));
 
   const add = document.createElement('article');
@@ -701,8 +704,9 @@ function render() {
   $('#grid').hidden = !!selected || layout !== 'grid';
   if (!selected) {
     if (layout === 'list') renderList(); else renderGrid();
-    const up = apps.filter(a => a.running).length;
-    $('#dash-count').textContent = up + ' of ' + apps.length + ' running';
+    const managed = apps.filter(a => !a.is_file && !a.is_self);
+    const up = managed.filter(a => a.running).length;
+    $('#dash-count').textContent = up + ' of ' + managed.length + ' running';
   }
 
   if (selected) {
@@ -937,9 +941,16 @@ function openForm(app, kind) {
   if (editing) {
     applyFormType(editing.is_file ? 'file' : 'app');
     if (editing.is_file) form.file.value = editing.file || '';
-    $('#form-title').textContent = 'Edit ' + editing.name;
-    $('#form-hint').innerHTML = 'Saved to <code>apps.json</code>. '
-      + 'Restart the app for a command or path change to take effect.';
+    const isSelf = !!editing.is_self;
+    $('#form-logs').hidden = !isSelf;
+    $('#form-title').textContent = isSelf ? 'Launcher settings'
+                                          : 'Edit ' + editing.name;
+    $('#form-hint').innerHTML = isSelf
+      ? 'The registry entry for the launcher itself. Restart it from a terminal '
+        + '(<code>devapps restart launcher</code>) for a port or path change to '
+        + 'take effect &mdash; it cannot restart itself.'
+      : 'Saved to <code>apps.json</code>. Restart the app for a command or path '
+        + 'change to take effect.';
     $('#form-submit').textContent = 'Save changes';
     $('#name-help').textContent = 'Renaming moves its log, pid and icon files to '
       + 'match, and relaunches the app if it is running.';
@@ -956,6 +967,7 @@ function openForm(app, kind) {
     form.version_cmd.value = editing.version_cmd || '';
     form.autostart.checked = !!editing.autostart;
   } else {
+    $('#form-logs').hidden = true;
     const wanted = kind === 'file' ? 'file' : 'app';
     applyFormType(wanted);
     if (wanted === 'file') {
@@ -980,12 +992,24 @@ function openForm(app, kind) {
 
 $('#side-add').addEventListener('click', () => openForm(null, 'app'));
 
+const settingsBtn = $('#side-settings');
+if (settingsBtn) settingsBtn.addEventListener('click', () => {
+  const self = apps.find(a => a.is_self);
+  if (self) openForm(self);
+  else toast('the launcher is not in the registry, so it has nothing to edit', 'bad');
+});
+
 
 if (dialog) {
   const form = $('#add-form');
   const err = $('#add-err');
 
   $('#add-cancel').addEventListener('click', () => dialog.close());
+
+  // The launcher no longer has a row of its own, so this is where its logs live.
+  $('#form-logs').addEventListener('click', () => {
+    if (editing) showLogs(editing.name);
+  });
 
   form.addEventListener('submit', async (ev) => {
     ev.preventDefault();

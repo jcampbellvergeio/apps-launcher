@@ -63,9 +63,15 @@ isn't. `‹` collapses it to
 an icon rail (remembered per browser); drag the rows to reorder them, which also
 sets the order the logon task starts them in.
 
-**The launcher's own row** is a dashboard rather than an embedded page: `Start
-all`, `Refresh`, `+ Register an app`, a running count, and a **List / Tiles**
-switch over the apps themselves. Each list row carries **the path it runs
+**The launcher does not list itself** among the apps it manages — it is the thing
+you are using, not one of them. Its own port, path, command and logs are behind
+**Launcher settings** (the gear at the foot of the menu). For the same reason
+there is no separate "Apps" nav item: the brand at the top is the way home, and
+one destination deserves one door.
+
+**The dashboard** is what you land on: `Start all`, `Refresh`,
+`+ Register an app`, a running count, and a **List / Tiles** switch over the
+managed apps. Each list row carries **the path it runs
 from**, the endpoint, the version, live state, a clickable **logon / manual**
 pill, and `Start`/`Restart`/`Stop`, `Edit`, `Logs`, `Delete`.
 
