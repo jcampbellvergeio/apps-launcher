@@ -64,7 +64,7 @@ a { color: var(--accent); }
 .rail .side-top { justify-content: center; padding: 0; }
 .rail .collapse { margin-left: 0; }
 .rail .side-item { justify-content: center; padding: 8px 0; }
-.rail .side-label { height: 8px; padding: 0; border: 0; }
+.rail .side-label { height: 8px; margin: 6px 0 0; padding: 0; border: 0; background: none; }
 .rail .side-apps .dot { position: absolute; top: 6px; right: 8px; }
 
 /* ------------------------------------------------------------------ sidebar */
@@ -111,11 +111,17 @@ a { color: var(--accent); }
 .side-nav, .side-apps { padding: 8px; display: flex; flex-direction: column; gap: 2px; }
 .side-apps { overflow-y: auto; padding-top: 0; }
 
+/* A banded header: tinted ground, white text, outlined. Inset from the edge so
+   the outline reads as a band rather than a line touching the panel. */
 .side-label {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 10px 8px 4px 14px;
+  margin: 10px 8px 4px;
+  padding: 5px 6px 5px 10px;
+  background: rgba(90, 169, 255, .12);
+  border: 1px solid #2f6ba8;
+  border-radius: 7px;
 }
 .label-toggle {
   display: flex;
@@ -124,15 +130,18 @@ a { color: var(--accent); }
   padding: 0;
   border: 0;
   background: transparent;
-  color: var(--off);
+  color: #fff;
   font: inherit;
   font-size: 11px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: .07em;
   cursor: pointer;
   min-width: 0;
 }
-.label-toggle:hover { color: var(--dim); }
+.label-toggle { color: #fff; }
+.label-toggle:hover { color: #fff; }
+.label-add { color: #cfe2f6; }
 .caret { display: inline-block; font-size: 9px; transition: transform .12s ease; }
 .side-label.collapsed .caret { transform: rotate(-90deg); }
 
@@ -359,9 +368,11 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
   align-items: center;
   gap: 12px;
   padding: 7px 14px;
-  background: var(--panel-2);
-  border-bottom: 1px solid var(--line);
+  background: rgba(90, 169, 255, .12);
+  border-top: 1px solid #2f6ba8;
+  border-bottom: 1px solid #2f6ba8;
 }
+.applist-head .applist-section { color: #fff; font-weight: 600; }
 .applist-head .applist-section { padding: 0; }
 .head-add { margin-left: auto; }
 .head-none { color: var(--off); font-size: 12px; }

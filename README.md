@@ -198,7 +198,8 @@ harmless — it skips them.
 
 ```json
 {
-  "name": "myapp",
+  "name": "myapp",                   // the id: filenames, the CLI, /open/<id>
+  "label": "My App",                 // what the menu shows
   "dir": "MyApp",                    // folder beside launcher/, or a full path
   "command": "python",
   "args": ["app.py"],                // expanded to a full path at launch
@@ -212,6 +213,13 @@ harmless — it skips them.
 
 Order in the file is order in the UI and in the logon start sequence, so
 reordering the menu rewrites this list.
+
+**Two names, on purpose.** `label` is for you and can be anything — spaces,
+capitals, punctuation. `name` is the id: it becomes `logs/<id>.log`,
+`state/<id>.pid`, the argument you type into the CLI and, for a document, the
+URL it is served at — so it is lowercase with no spaces. The form fills the id
+in from the name as you type and lets you change it; an entry written without a
+`label` simply shows its id, so older registries keep working.
 
 `command` is resolved on PATH, and **`python` and `python3` stand in for each
 other** — a registry written on Windows says `python`, which most Linux

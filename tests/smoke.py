@@ -228,7 +228,13 @@ def main():
     ok, rendered = engine.install_autostart(dry_run=True)
     check("autostart dry-run renders", ok and len(rendered) > 40, rendered[:120])
     if sys.platform.startswith("win"):
-        check("windows: schtasks command", "schtasks" in rendered, rendered[:120])
+        # PowerShell, not schtasks: schtasks /Create is denied to an
+        # unelevated user, and a per-user login item must not need an admin
+        # prompt.
+        check("windows: registers a scheduled task",
+              "Register-ScheduledTask" in rendered, rendered[:160])
+        check("windows: carries the login delay",
+              "PT%dS" % engine.LOGON_DELAY in rendered, rendered[:160])
     elif sys.platform == "darwin":
         check("macos: plist is well-formed XML", _valid_xml(rendered), rendered[:200])
         check("macos: agent has RunAtLoad", "RunAtLoad" in rendered)

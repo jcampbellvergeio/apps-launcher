@@ -26,7 +26,7 @@
      */
     const SAMPLE = [
       {
-        name: "launcher", description: "This page - list, status and registration for the other apps",
+        name: "launcher", label: "Apps Launcher", description: "This page - list, status and registration for the other apps",
         icon: "../static/icons/launcher.svg", type: "self", is_self: true, is_file: false,
         dir: "launcher", path: "C:\\Users\\you\\dev\\launcher", path_exists: true,
         command: "python", args: ["app.py"], port: 5058, url: "http://127.0.0.1:5058/",
@@ -34,7 +34,7 @@
         has_logs: true, file: "", file_exists: null, note: "",
       },
       {
-        name: "notes-api", description: "REST API for the notes service",
+        name: "notes-api", label: "Notes API", description: "REST API for the notes service",
         icon: "../static/icons/braces.svg", type: "app", is_self: false, is_file: false,
         dir: "NotesApi", path: "C:\\Users\\you\\dev\\NotesApi", path_exists: true,
         command: "python", args: ["app.py"], port: 5055, url: "http://127.0.0.1:5055/",
@@ -42,7 +42,7 @@
         has_logs: true, file: "", file_exists: null, note: "",
       },
       {
-        name: "dashboard", description: "Metrics dashboard, self-signed cert",
+        name: "dashboard", label: "Metrics Dashboard", description: "Metrics dashboard, self-signed cert",
         icon: "../static/icons/gauge.svg", type: "app", is_self: false, is_file: false,
         dir: "Dashboard", path: "C:\\Users\\you\\dev\\Dashboard", path_exists: true,
         command: "python", args: ["app.py"], port: 5000, url: "https://localhost:5000/",
@@ -50,7 +50,7 @@
         has_logs: true, file: "", file_exists: null, note: "",
       },
       {
-        name: "inbox-worker", description: "Background queue worker - email and chat",
+        name: "inbox-worker", label: "Inbox Worker", description: "Background queue worker - email and chat",
         icon: "../static/icons/inbox.svg", type: "app", is_self: false, is_file: false,
         dir: "InboxWorker", path: "C:\\Users\\you\\dev\\InboxWorker", path_exists: true,
         command: "python", args: ["worker.py"], port: 5061, url: "http://127.0.0.1:5061/",
@@ -58,7 +58,7 @@
         via: "port", has_logs: false, file: "", file_exists: null, note: "",
       },
       {
-        name: "reports", description: "Monthly report builder",
+        name: "reports", label: "Monthly Reports", description: "Monthly report builder",
         icon: "../static/icons/calendar.svg", type: "app", is_self: false, is_file: false,
         dir: "Reports", path: "C:\\Users\\you\\dev\\Reports", path_exists: true,
         command: "python", args: ["app.py"], port: 5057, url: "http://127.0.0.1:5057/",
@@ -66,7 +66,7 @@
         has_logs: true, file: "", file_exists: null, note: "",
       },
       {
-        name: "scheduler", description: "Cron-style job runner - started on demand",
+        name: "scheduler", label: "Job Scheduler", description: "Cron-style job runner - started on demand",
         icon: "../static/icons/default.svg", type: "app", is_self: false, is_file: false,
         dir: "Scheduler", path: "C:\\Users\\you\\dev\\Scheduler", path_exists: true,
         command: "node", args: ["server.js"], port: 5062, url: "http://127.0.0.1:5062/",
@@ -74,7 +74,7 @@
         via: "none", has_logs: true, file: "", file_exists: null, note: "",
       },
       {
-        name: "system-snapshot", description: "Generated hardware and service snapshot",
+        name: "system-snapshot", label: "System Snapshot", description: "Generated hardware and service snapshot",
         icon: "../static/icons/file.svg", type: "file", is_self: false, is_file: true,
         dir: "", path: "", path_exists: null,
         command: "", args: [], port: null, url: "/open/system-snapshot",
@@ -85,7 +85,7 @@
     ];
 
     const VERSIONS = {
-      "launcher":        { version: "1.1.0",         source: "App Launcher" },
+      "launcher":        { version: "1.2.0",         source: "Apps Launcher" },
       "notes-api":       { version: "v2.3.1",        source: "package.json" },
       "dashboard":       { version: "v0.9.4",        source: "git describe" },
       "inbox-worker":    { version: "5736112-dirty", source: "git describe" },
@@ -95,8 +95,8 @@
     };
 
     const REPLIES = {
-      "/api/status":   { apps: SAMPLE, at: Date.now() / 1000, launcher_version: "1.1.0" },
-      "/api/versions": { ok: true, versions: VERSIONS, launcher_version: "1.1.0" },
+      "/api/status":   { apps: SAMPLE, at: Date.now() / 1000, launcher_version: "1.2.0" },
+      "/api/versions": { ok: true, versions: VERSIONS, launcher_version: "1.2.0" },
     };
 
     // Answer from the fixture instead of the network, so the page needs nothing

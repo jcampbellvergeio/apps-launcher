@@ -1,4 +1,4 @@
-"""App Launcher engine: the registry, liveness, and starting and stopping apps.
+"""Apps Launcher engine: the registry, liveness, and starting and stopping apps.
 
 One implementation for Windows, Linux and macOS. Both front ends use it -- the
 CLI (`devapps.py`) and the web UI (`app.py`) -- so they cannot disagree about
@@ -20,9 +20,10 @@ import socket
 import subprocess
 import sys
 import time
+import unicodedata
 from xml.sax.saxutils import escape as xml_escape
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PARENT = os.path.dirname(ROOT)           # relative `dir` values resolve against this
@@ -35,8 +36,10 @@ ICON_DIR = os.path.join(ROOT, "static", "icons")
 WINDOWS = sys.platform.startswith("win")
 MACOS = sys.platform == "darwin"
 
-TASK_NAME = "App Launcher at logon"
-LEGACY_TASK_NAME = "DevApps at logon"    # pre-rename; install/uninstall clear it
+TASK_NAME = "Apps Launcher at logon"
+# Names this task has had. install and uninstall clear all of them, so a
+# machine cannot end up with two tasks racing to start the same apps.
+LEGACY_TASK_NAMES = ("App Launcher at logon", "DevApps at logon")
 SERVICE_NAME = "app-launcher"            # systemd --user unit
 AGENT_LABEL = "io.github.apps-launcher"  # launchd LaunchAgent
 LOGON_DELAY = 30                         # seconds; see install_autostart()
@@ -161,6 +164,42 @@ def derive_match(directory, args):
     return pattern
 
 
+def slugify(text, fallback="app"):
+    """Turn a display name into a machine id: 'Sample Apps Launcher' -> 'sample-apps-launcher'.
+
+    The id is used for filenames (logs/<id>.log, state/<id>.pid), the CLI and
+    the URL a document is served at, so it has to survive all three: lowercase,
+    no spaces, and nothing outside [a-z0-9._-]. Accents are folded rather than
+    dropped so 'Café' becomes 'cafe' instead of 'caf'.
+    """
+    folded = unicodedata.normalize("NFKD", str(text or ""))
+    folded = folded.encode("ascii", "ignore").decode("ascii").lower()
+    slug = re.sub(r"[^a-z0-9._-]+", "-", folded).strip("-._")
+    slug = re.sub(r"-{2,}", "-", slug)[:32].strip("-._")
+    # Has to start with a letter or digit, per NAME_RE in the web layer.
+    while slug and not slug[0].isalnum():
+        slug = slug[1:]
+    return slug or fallback
+
+
+def label_of(entry):
+    """What to show a human. Falls back to the id for entries written before
+    labels existed."""
+    return (entry.get("label") or "").strip() or entry.get("name") or ""
+
+
+def unique_slug(cfg, slug):
+    """`slug`, or slug-2, slug-3... if the registry already has it."""
+    taken = {a.get("name") for a in apps(cfg)}
+    if slug not in taken:
+        return slug
+    for n in range(2, 100):
+        candidate = "%s-%d" % (slug[:29], n)
+        if candidate not in taken:
+            return candidate
+    return slug
+
+
 def rename_side_files(old, new, entry):
     """Move the files named after an app: its logs, its recorded PID, and its
     icon if the icon is the name-derived one.
@@ -272,7 +311,7 @@ def app_version(entry, use_cache=True):
     result = {"version": "", "source": ""}
 
     if is_self_entry(entry):
-        result = {"version": VERSION, "source": "App Launcher"}
+        result = {"version": VERSION, "source": "Apps Launcher"}
     elif is_file_entry(entry):
         path = file_path(entry)
         if os.path.exists(path):
@@ -858,7 +897,7 @@ def _start_command():
 
 
 SYSTEMD_UNIT = """[Unit]
-Description=App Launcher: start local apps at login
+Description=Apps Launcher: start local apps at login
 After=network-online.target
 
 [Service]
@@ -904,6 +943,22 @@ LAUNCHD_PLIST = """<?xml version="1.0" encoding="UTF-8"?>
 """
 
 
+WINDOWS_TASK_PS = """
+$ErrorActionPreference = 'Stop'
+$act = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument   '-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -Command "& %(command)s"'
+$trg = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+# A dev box is not always online the instant you log in; the wait keeps an app
+# that polls something on startup from losing its first DNS lookup.
+$trg.Delay = 'PT%(delay)dS'
+$set = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries   -DontStopIfGoingOnBatteries -ExecutionTimeLimit ([TimeSpan]::Zero)
+Register-ScheduledTask -TaskName '%(task)s' -Action $act -Trigger $trg   -Settings $set -Description 'Starts the local apps listed in apps.json' -Force | Out-Null
+foreach ($old in @(%(legacy)s)) {
+  try { Unregister-ScheduledTask -TaskName $old -Confirm:$false -ErrorAction Stop } catch { }
+}
+""".replace("\
+", "")
+
+
 def autostart_paths():
     """Where this platform's autostart definition lives."""
     home = os.path.expanduser("~")
@@ -932,21 +987,25 @@ def install_autostart(dry_run=False):
     argv = _start_command()
 
     if WINDOWS:
-        # schtasks rather than PowerShell, so the engine has one less dependency
-        # on a shell. /DELAY needs the ONLOGON schedule.
-        cmd = ["schtasks", "/Create", "/TN", TASK_NAME,
-               "/TR", _quote(argv), "/SC", "ONLOGON",
-               # schtasks /DELAY takes mmmm:ss.
-               "/DELAY", "%04d:%02d" % (LOGON_DELAY // 60, LOGON_DELAY % 60),
-               "/RL", "LIMITED", "/F"]
+        # PowerShell's Register-ScheduledTask, not schtasks: schtasks /Create
+        # fails with "Access is denied" for an unelevated user on the task
+        # root, while this works -- and needing an admin prompt to install a
+        # per-user login item would be absurd.
+        script = WINDOWS_TASK_PS % {
+            "task": TASK_NAME.replace("'", "''"),
+            "command": _quote(argv).replace("'", "''"),
+            "delay": LOGON_DELAY,
+            "legacy": ", ".join("'%s'" % t.replace("'", "''")
+                                for t in LEGACY_TASK_NAMES),
+        }
         if dry_run:
-            return True, " ".join(cmd)
-        res = subprocess.run(cmd, capture_output=True, text=True,
-                             creationflags=0x08000000)
+            return True, script
+        res = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+             "-Command", script],
+            capture_output=True, text=True, creationflags=0x08000000)
         if res.returncode != 0:
             return False, (res.stderr or res.stdout).strip()
-        subprocess.run(["schtasks", "/Delete", "/TN", LEGACY_TASK_NAME, "/F"],
-                       capture_output=True, text=True, creationflags=0x08000000)
         return True, "registered scheduled task '%s'" % TASK_NAME
 
     if MACOS:
@@ -988,10 +1047,13 @@ def uninstall_autostart():
     target = autostart_paths()
     if WINDOWS:
         removed = []
-        for task in (TASK_NAME, LEGACY_TASK_NAME):
-            res = subprocess.run(["schtasks", "/Delete", "/TN", task, "/F"],
-                                 capture_output=True, text=True,
-                                 creationflags=0x08000000)
+        for task in (TASK_NAME,) + LEGACY_TASK_NAMES:
+            res = subprocess.run(
+                ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                 "-Command",
+                 "Unregister-ScheduledTask -TaskName '%s' -Confirm:$false"
+                 % task.replace("'", "''")],
+                capture_output=True, text=True, creationflags=0x08000000)
             if res.returncode == 0:
                 removed.append(task)
         return True, ("removed " + ", ".join("'%s'" % t for t in removed)

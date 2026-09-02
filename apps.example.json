@@ -3,6 +3,7 @@
     "apps": [
         {
             "name": "launcher",
+            "label": "Apps Launcher",
             "dir": "launcher",
             "command": "python",
             "args": [
@@ -17,6 +18,7 @@
         },
         {
             "name": "example-api",
+            "label": "Example API",
             "dir": "ExampleApi",
             "command": "python",
             "args": [
@@ -32,6 +34,7 @@
         },
         {
             "name": "example-node",
+            "label": "Example Node App",
             "dir": "ExampleNode",
             "command": "node",
             "args": [
@@ -47,6 +50,7 @@
         },
         {
             "name": "example-doc",
+            "label": "Example Document",
             "type": "file",
             "file": "Docs/notes.html",
             "port": null,

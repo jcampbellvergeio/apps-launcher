@@ -145,7 +145,7 @@ function sidebarItem(a, route) {
                    + (active ? ' on' : '');
     item.href = a.is_self ? '/' : '/#/app/' + encodeURIComponent(a.name);
     // Rail mode hides the label, so the tooltip carries the name and state.
-    item.title = a.name + ' — ' + (a.is_file
+    item.title = labelOf(a) + '  (' + a.name + ')  — ' + (a.is_file
       ? (a.file_exists ? 'file present' : 'file missing')
       : a.running ? 'running' : 'stopped');
     item.dataset.open = a.name;
@@ -159,7 +159,7 @@ function sidebarItem(a, route) {
 
     const label = document.createElement('span');
     label.className = 'label';
-    label.textContent = a.name;
+    label.textContent = labelOf(a);
     item.appendChild(label);
 
     const dot = document.createElement('span');
@@ -332,7 +332,7 @@ function setTopbar(a) {
   } else {
     icon.hidden = true;
   }
-  $('#tb-name').textContent = a ? a.name : 'Apps';
+  $('#tb-name').textContent = a ? labelOf(a) : 'Apps';
   const openVersion = a ? versionOf(a.name) : '';
   $('#tb-meta').textContent = a && a.is_file
     ? a.file + (a.file_exists ? '' : '  ·  MISSING')
@@ -464,7 +464,7 @@ function tile(a) {
 
   const name = document.createElement('span');
   name.className = 'tile-name';
-  name.textContent = a.name;
+  name.textContent = labelOf(a);
   head.appendChild(name);
 
   const dot = document.createElement('span');
@@ -597,7 +597,7 @@ function renderList() {
     text.className = 'row-text';
     const nm = document.createElement('span');
     nm.className = 'row-name';
-    nm.textContent = a.name;
+    nm.textContent = labelOf(a);
     text.appendChild(nm);
     const desc = document.createElement('span');
     desc.className = 'row-desc';
@@ -770,7 +770,7 @@ async function loadVersions(refresh) {
     const el = $('#side-version');
     if (el && data.launcher_version) {
       el.textContent = 'v' + data.launcher_version;
-      el.title = 'App Launcher v' + data.launcher_version;
+      el.title = 'Apps Launcher v' + data.launcher_version;
     }
     render();
   } catch { /* the column just stays blank */ }
@@ -791,6 +791,24 @@ function externalBadge() {
   tag.textContent = 'external';
   tag.title = EXTERNAL_HELP;
   return tag;
+}
+
+/* The display name, falling back to the id for entries written before labels
+   existed. The id is what the CLI, the log filenames and /open/<id> use. */
+function labelOf(a) {
+  return a.label || a.name;
+}
+
+/* A browser-side mirror of engine.slugify(), for the live preview only -- the
+   server derives the id it actually stores. */
+function slugPreview(text) {
+  return String(text || '')
+    .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/-{2,}/g, '-')
+    .replace(/^[-._]+|[-._]+$/g, '')
+    .slice(0, 32);
 }
 
 /* Where the thing actually lives: an app's folder, a document's file. */
@@ -948,6 +966,7 @@ document.addEventListener('keydown', (ev) => {
 const dialog = $('#add-dialog');
 let editing = null;     // the app being edited, or null when registering
 let formKind = 'app';  // which shape the form is showing: 'app' or 'file'
+let idDirty = false;   // the user has edited the id, so stop deriving it
 
 /* One form for both jobs. Registering and editing validate identically on the
    server, so they should look identical here too -- the only difference is that
@@ -971,6 +990,9 @@ function openForm(app, kind) {
   editing = app || null;
   $('#add-err').hidden = true;
   form.reset();
+  // Typing in the id field stops it following the name; a fresh form follows
+  // again.
+  idDirty = false;
 
   if (editing) {
     applyFormType(editing.is_file ? 'file' : 'app');
@@ -978,7 +1000,7 @@ function openForm(app, kind) {
     const isSelf = !!editing.is_self;
     $('#form-logs').hidden = !isSelf;
     $('#form-title').textContent = isSelf ? 'Launcher settings'
-                                          : 'Edit ' + editing.name;
+                                          : 'Edit ' + labelOf(editing);
     $('#form-hint').innerHTML = isSelf
       ? 'The registry entry for the launcher itself. Restart it from a terminal '
         + '(<code>devapps restart launcher</code>) for a port or path change to '
@@ -986,10 +1008,11 @@ function openForm(app, kind) {
       : 'Saved to <code>apps.json</code>. Restart the app for a command or path '
         + 'change to take effect.';
     $('#form-submit').textContent = 'Save changes';
-    $('#name-help').textContent = 'Renaming moves its log, pid and icon files to '
-      + 'match, and relaunches the app if it is running.';
+    $('#name-help').textContent = 'Shown in the menu. Change it freely.';
+    $('#id-help').textContent = 'Used for filenames, the CLI and URLs. Changing '
+      + 'it moves the log, pid and icon files and relaunches the app.';
+    form.label.value = labelOf(editing);
     form.name.value = editing.name;
-    form.name.readOnly = false;
     form.dir.value = editing.dir || '';
     form.command.value = editing.command || 'python';
     form.args.value = (editing.args || []).join(' ');
@@ -1009,15 +1032,17 @@ function openForm(app, kind) {
       $('#form-hint').innerHTML = 'A document to open in the browser. The launcher '
         + 'serves it, so it works in a tab and in the pane.';
       $('#form-submit').textContent = 'Add file';
-      $('#name-help').textContent = 'Lowercase. Used in the URL the launcher '
-        + 'serves it at.';
+  
     } else {
       $('#form-title').textContent = 'Register an app';
       $('#form-hint').innerHTML = 'Written to <code>apps.json</code>, so it starts at '
         + 'logon too.';
       $('#form-submit').textContent = 'Add app';
     }
-    $('#name-help').textContent = 'Lowercase. Used for the log filenames and the CLI.';
+    $('#name-help').textContent = 'Shown in the menu. Type it however you like.';
+    $('#id-help').textContent = 'Filled in from the name above. Used for '
+      + 'filenames, the CLI and URLs, so it has no spaces or capitals -- change '
+      + 'it if you like.';
     form.command.value = 'python';
     form.autostart.checked = true;
   }
@@ -1041,6 +1066,15 @@ if (dialog) {
   const form = $('#add-form');
   const err = $('#add-err');
 
+  /* The id follows the name until someone edits the id itself -- then it is
+     theirs, and we stop overwriting what they typed. */
+  form.label.addEventListener('input', () => {
+    if (editing || idDirty) return;
+    form.name.value = slugPreview(form.label.value);
+  });
+
+  form.name.addEventListener('input', () => { idDirty = true; });
+
   $('#add-cancel').addEventListener('click', () => dialog.close());
 
   // The launcher no longer has a row of its own, so this is where its logs live.
@@ -1055,6 +1089,7 @@ if (dialog) {
     const payload = {
       type: formKind,
       file: fd.get('file'),
+      label: fd.get('label'),
       name: fd.get('name'),
       dir: fd.get('dir'),
       command: fd.get('command'),
@@ -1080,13 +1115,14 @@ if (dialog) {
       return;
     }
     const renamedFrom = data.renamed_from;
+    const shown = data.app ? (data.app.label || data.app.name) : payload.label;
     const verb = !editing ? 'added to apps.json'
                : renamedFrom ? 'renamed from ' + renamedFrom : 'saved';
     const extra = data.warning || data.note;
     dialog.close();
     editing = null;
-    toast(extra ? payload.name + ' ' + verb + ' — ' + extra
-                : payload.name + ' ' + verb,
+    toast(extra ? shown + ' ' + verb + ' — ' + extra
+                : shown + ' ' + verb,
           data.warning ? 'warn' : null);
     // A rename changes the route's name, so a viewer open on the old one would
     // bounce to the grid on the next render.

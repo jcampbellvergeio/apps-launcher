@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}App Launcher{% endblock %}</title>
+  <title>{% block title %}Apps Launcher{% endblock %}</title>
   <link rel="icon" href="{{ url_for('static', filename='icons/launcher.svg') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
   <script>
@@ -23,9 +23,9 @@
        toggled by app.js thereafter. -->
   <aside class="side">
     <div class="side-top">
-      <a class="brand" href="/" title="App Launcher">
+      <a class="brand" href="/" title="Apps Launcher">
         <img class="ico" src="{{ url_for('static', filename='icons/launcher.svg') }}" alt="">
-        <span class="label">App Launcher</span>
+        <span class="label">Apps Launcher</span>
       </a>
       <!-- One button, both directions: it stays in the menu header in either
            state so it doesn't move when the menu collapses. -->
@@ -67,7 +67,7 @@
         <span class="glyph" aria-hidden="true">&#9881;</span>
         <span class="label">Launcher settings</span>
       </button>
-      <div class="side-version" id="side-version" title="App Launcher version"></div>
+      <div class="side-version" id="side-version" title="Apps Launcher version"></div>
     </div>
   </aside>
 

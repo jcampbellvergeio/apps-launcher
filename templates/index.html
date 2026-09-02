@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}App Launcher{% endblock %}
+{% block title %}Apps Launcher{% endblock %}
 
 {% block content %}
 <!-- Tiles are rendered by app.js from /api/status so the markup lives in one
@@ -49,9 +49,18 @@
       logon too.</p>
 
     <label>Name
-      <input name="name" required placeholder="myapp" pattern="[a-z0-9][a-z0-9._\-]*"
+      <input name="label" id="form-label" required placeholder="My App"
+             autocomplete="off">
+      <small id="name-help">Shown in the menu. Type it however you like.</small>
+    </label>
+
+    <label>App Name
+      <input name="name" id="form-id" required pattern="[a-z0-9][a-z0-9._\-]*"
+             placeholder="my-app" autocomplete="off"
              title="lowercase letters, digits, dot, underscore, hyphen">
-      <small id="name-help">Lowercase. Used for the log filenames and the CLI.</small>
+      <small id="id-help">Filled in from the name above. Used for filenames, the
+        CLI and URLs, so it has no spaces or capitals &mdash; change it if you
+        like.</small>
     </label>
 
     <!-- Only for type=file: everything below in .app-only is hidden then. -->

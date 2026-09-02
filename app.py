@@ -1,4 +1,4 @@
-"""App Launcher -- web front end.
+"""Apps Launcher -- web front end.
 
 A row per registered app: open it, start/stop/restart it, see whether it is
 actually listening, register a new one. Everything about the registry, liveness
@@ -28,6 +28,8 @@ DEV_ROOT = engine.PARENT
 LOG_DIR = engine.LOG_DIR
 ICON_DIR = engine.ICON_DIR
 load_registry = engine.load_registry
+slugify = engine.slugify
+label_of = engine.label_of
 is_file_entry = engine.is_file_entry
 file_path = engine.file_path
 save_registry = engine.save_registry
@@ -126,6 +128,7 @@ def app_view():
         directory = app_dir(entry)
         view.append({
             "name": name,
+            "label": label_of(entry),
             "description": entry.get("description") or "",
             "icon": icon_for(entry),
             "dir": entry.get("dir"),
@@ -326,15 +329,22 @@ def parse_file_fields(data, cfg, current=None):
     existing = cfg.get("apps", [])
     fields = {}
 
+    label = (data.get("label") or "").strip()
     if current is None:
-        name = (data.get("name") or "").strip().lower()
+        given = (data.get("name") or "").strip().lower()
+        name = given or slugify(label, "")
         if not NAME_RE.match(name):
-            raise Invalid("name must be lowercase letters, digits, . _ - (max 32)")
+            raise Invalid(
+                ("app name %r is not usable: lowercase letters, digits, . _ - "
+                 "only" % given) if given else
+                ("could not make an app name from %r -- type one yourself"
+                 % label))
         if any(a.get("name") == name for a in existing):
-            raise Invalid("'%s' is already registered" % name, 409)
+            name = engine.unique_slug(cfg, name)
         fields["name"] = name
     else:
         name = current.get("name")
+    fields["label"] = label or engine.label_of({"name": name})
 
     raw = (data.get("file") or data.get("dir") or "").strip().strip('"')
     if not raw:
@@ -370,17 +380,24 @@ def parse_fields(data, cfg, current=None):
     existing = cfg.get("apps", [])
     fields = {}
 
+    label = (data.get("label") or "").strip()
     if current is None:
-        name = (data.get("name") or "").strip().lower()
+        # The id is derived from the display name unless one is given outright:
+        # nobody should have to invent a filename-safe string by hand.
+        given = (data.get("name") or "").strip().lower()
+        name = given or slugify(label, "")
         if not NAME_RE.match(name):
-            raise Invalid("name must be lowercase letters, digits, . _ - (max 32)")
+            raise Invalid(
+                ("app name %r is not usable: lowercase letters, digits, . _ - "
+                 "only" % given) if given else
+                ("could not make an app name from %r -- type one yourself"
+                 % label))
         if any(a.get("name") == name for a in existing):
-            raise Invalid("'%s' is already registered" % name, 409)
+            name = engine.unique_slug(cfg, name)
         fields["name"] = name
     else:
-        # Renaming would orphan logs/<name>.log and state/<name>.pid, so the
-        # name is fixed once registered.
         name = current.get("name")
+    fields["label"] = label or engine.label_of({"name": name})
 
     raw_dir = (data.get("dir") or "").strip().strip('"')
     if not raw_dir:
@@ -491,6 +508,7 @@ def api_add():
     if kind == "file":
         entry = {
             "name": fields["name"],
+            "label": fields["label"],
             "file": fields["file"],
             "port": None,
             "url": fields["url"],
@@ -501,6 +519,7 @@ def api_add():
     else:
         entry = {
             "name": fields["name"],
+            "label": fields["label"],
             "dir": fields["dir"],
             "command": fields["command"],
             "args": fields["args"],

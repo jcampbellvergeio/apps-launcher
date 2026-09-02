@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""App Launcher CLI -- start, stop and check the apps listed in apps.json.
+"""Apps Launcher CLI -- start, stop and check the apps listed in apps.json.
 
 Runs on Windows, Linux and macOS. All the work is in engine.py, which the web
 UI imports directly, so the two front ends cannot disagree.
