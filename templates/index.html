@@ -47,77 +47,84 @@
     <p class="hint" id="form-hint">Written to <code>apps.json</code>, so it starts at
       logon too.</p>
 
-    <label>Name
-      <input name="label" id="form-label" required placeholder="My App"
-             autocomplete="off">
-      <small id="name-help">Shown in the menu. Type it however you like.</small>
-    </label>
+    <!-- Only the fields scroll: the title stays at the top and the
+         buttons at the bottom, so Cancel and Save are always reachable
+         however long the form gets. -->
+    <div class="form-body">
 
-    <label>App Name
-      <input name="name" id="form-id" required pattern="[a-z0-9][a-z0-9._\-]*"
-             placeholder="my-app" autocomplete="off"
-             title="lowercase letters, digits, dot, underscore, hyphen">
-      <small id="id-help">Filled in from the name above. Used for filenames, the
-        CLI and URLs, so it has no spaces or capitals &mdash; change it if you
-        like.</small>
-    </label>
-
-    <!-- Only for type=file: everything below in .app-only is hidden then. -->
-    <label class="file-only" hidden>File
-      <input name="file" placeholder="C:\path\to\page.html">
-      <small>Served by the launcher, so it opens in a tab and renders in the
-        pane. A browser refuses a <code>file://</code> URL from an http page.</small>
-    </label>
-
-    <label class="app-only">Path
-      <input name="dir" placeholder="MyApp  or  C:\path\to\MyApp">
-      <small>Folder name under <code>dev/</code>, or a full path. Must exist.</small>
-    </label>
-
-    <div class="row app-only">
-      <label>Command
-        <input name="command" value="python" required>
+      <label>Name
+        <input name="label" id="form-label" required placeholder="My App"
+               autocomplete="off">
+        <small id="name-help">Shown in the menu. Type it however you like.</small>
       </label>
-      <label>Arguments
-        <input name="args" placeholder="app.py">
+
+      <label>App Name
+        <input name="name" id="form-id" required pattern="[a-z0-9][a-z0-9._\-]*"
+               placeholder="my-app" autocomplete="off"
+               title="lowercase letters, digits, dot, underscore, hyphen">
+        <small id="id-help">Filled in from the name above. Used for filenames, the
+          CLI and URLs, so it has no spaces or capitals &mdash; change it if you
+          like.</small>
       </label>
+
+      <!-- Only for type=file: everything below in .app-only is hidden then. -->
+      <label class="file-only" hidden>File
+        <input name="file" placeholder="C:\path\to\page.html">
+        <small>Served by the launcher, so it opens in a tab and renders in the
+          pane. A browser refuses a <code>file://</code> URL from an http page.</small>
+      </label>
+
+      <label class="app-only">Path
+        <input name="dir" placeholder="MyApp  or  C:\path\to\MyApp">
+        <small>Folder name under <code>dev/</code>, or a full path. Must exist.</small>
+      </label>
+
+      <div class="row app-only">
+        <label>Command
+          <input name="command" value="python" required>
+        </label>
+        <label>Arguments
+          <input name="args" placeholder="app.py">
+        </label>
+      </div>
+
+      <div class="row app-only">
+        <label>Port
+          <input name="port" type="number" min="1" max="65535" placeholder="5061">
+          <small>Blank if it isn't a server.</small>
+        </label>
+        <label>URL
+          <input name="url" placeholder="auto from port">
+        </label>
+      </div>
+
+      <label>Description
+        <input name="description" placeholder="what it is">
+      </label>
+
+      <div class="row app-only">
+        <label>Version <span class="opt">optional</span>
+          <input name="version" placeholder="blank = detect it">
+          <small>A literal, used as typed.</small>
+        </label>
+        <label>Version command <span class="opt">optional</span>
+          <input name="version_cmd" placeholder="python app.py --version">
+          <small>Run in the app's folder. Nothing runs unless you set this.</small>
+        </label>
+      </div>
+
+      <label class="app-only">Match pattern <span class="opt">optional</span>
+        <input name="match" placeholder="derived from path + arguments">
+        <small>Regex vs the process command line. No backslashes &mdash; use
+          <code>.</code> for the path separator, <code>[.]</code> for a dot.</small>
+      </label>
+
+      <label class="check app-only">
+        <input type="checkbox" name="autostart" checked>
+        Start at logon
+      </label>
+
     </div>
-
-    <div class="row app-only">
-      <label>Port
-        <input name="port" type="number" min="1" max="65535" placeholder="5061">
-        <small>Blank if it isn't a server.</small>
-      </label>
-      <label>URL
-        <input name="url" placeholder="auto from port">
-      </label>
-    </div>
-
-    <label>Description
-      <input name="description" placeholder="what it is">
-    </label>
-
-    <div class="row app-only">
-      <label>Version <span class="opt">optional</span>
-        <input name="version" placeholder="blank = detect it">
-        <small>A literal, used as typed.</small>
-      </label>
-      <label>Version command <span class="opt">optional</span>
-        <input name="version_cmd" placeholder="python app.py --version">
-        <small>Run in the app's folder. Nothing runs unless you set this.</small>
-      </label>
-    </div>
-
-    <label class="app-only">Match pattern <span class="opt">optional</span>
-      <input name="match" placeholder="derived from path + arguments">
-      <small>Regex vs the process command line. No backslashes &mdash; use
-        <code>.</code> for the path separator, <code>[.]</code> for a dot.</small>
-    </label>
-
-    <label class="check app-only">
-      <input type="checkbox" name="autostart" checked>
-      Start at logon
-    </label>
 
     <p class="err" id="add-err" hidden></p>
 

@@ -40,6 +40,14 @@ jobs:
       - name: Engine smoke test
         run: python tests/smoke.py
 
+      - name: The README fixture still matches the templates
+        # It is generated from templates/ and static/; if a UI change makes it
+        # stale, the screenshot in the README silently stops being the truth.
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.12'
+        run: |
+          python docs/make_sample.py
+          git diff --exit-code -- docs/sample.html             || { echo "docs/sample.html is stale -- run python docs/make_sample.py"; exit 1; }
+
       - name: Autostart definition for this platform
         run: python devapps.py install --dry-run
 

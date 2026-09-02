@@ -661,6 +661,26 @@ dialog {
   border-radius: 12px;
   padding: 20px 22px;
   width: min(560px, 94vw);
+  /* The dialog itself never scrolls -- .form-body does -- so the heading and
+     the buttons stay put however long the form is. */
+  max-height: 88vh;
+  overflow: hidden;
+}
+dialog form { max-height: calc(88vh - 44px); }
+.form-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  /* Room for the scrollbar, so it never sits on top of an input. */
+  padding-right: 6px;
+  margin-right: -6px;
+}
+.sheet-head.end {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  margin-top: 2px;
 }
 dialog::backdrop { background: rgba(0, 0, 0, .6); }
 dialog h2 { margin: 0 0 4px; font-size: 17px; }
@@ -732,7 +752,7 @@ dialog small { color: var(--dim); font-size: 11.5px; }
   padding: 13px 16px;
   border-bottom: 1px solid var(--line);
 }
-.sheet-head.end { border: 0; padding: 4px 0 0; justify-content: flex-end; }
+.sheet-head.end { justify-content: flex-end; }
 .sheet-head h2 { margin: 0; font-size: 15px; }
 .sheet-head .btn { margin-left: auto; }
 .sheet pre {

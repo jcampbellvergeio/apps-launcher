@@ -399,14 +399,21 @@ the problem justifies.
 | `apps.example.json` | the starting registry, copied to `apps.json` on first run |
 | `logs/`, `state/` | captured output and recorded PIDs (gitignored) |
 | `tests/smoke.py` | end-to-end check of the engine on the platform you're on |
-| `docs/sample.html` | a screenshot fixture: the real UI with an invented fleet |
+| `docs/make_sample.py` | generates `docs/sample.html`, the README screenshot fixture |
 | `demo/`, `Dockerfile` | the two demo apps and the try-it image |
 
 ## The screenshot at the top
 
 `docs/sample.html` renders it. Open it in a browser and take the picture — it
 needs nothing running, because it loads the real `app.css` and `app.js` and
-stubs `fetch` with an invented fleet. Photographing the actual UI rather than a
+stubs `fetch` with an invented fleet.
+
+It is **generated**, by `python docs/make_sample.py`, from the real templates.
+Regenerate it after a UI change; CI fails if it has gone stale. The first
+version was a hand-copied snapshot of the markup and it rotted exactly as you
+would expect — it kept a nav item that had been deleted and lacked three element
+ids `app.js` had come to rely on, so the page threw on load and photographed an
+empty list. Photographing the actual UI rather than a
 hand-drawn mock means the image cannot quietly drift away from the code, and no
 real hostnames, ports or paths can end up in it.
 
