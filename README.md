@@ -61,9 +61,13 @@ sets the order the logon task starts them in.
 
 **The launcher's own row** is a dashboard rather than an embedded page: `Start
 all`, `Refresh`, `+ Register an app`, a running count, and a **List / Tiles**
-switch over the apps themselves. Each list row carries the endpoint, live state,
-a clickable **logon / manual** pill, and `Start`/`Restart`/`Stop`, `Edit`,
-`Logs`, `Delete`.
+switch over the apps themselves. Each list row carries **the path it runs
+from**, the endpoint, the version, live state, a clickable **logon / manual**
+pill, and `Start`/`Restart`/`Stop`, `Edit`, `Logs`, `Delete`.
+
+The path is truncated from the left, so the end of a long path — the part that
+identifies it — stays visible, with the whole thing in the tooltip. It turns
+amber when the folder or file isn't there.
 
 **Any other app** opens embedded in a pane, with its own controls in the topbar
 and an `Open ↗` for a real tab. The selection lives in the URL hash
