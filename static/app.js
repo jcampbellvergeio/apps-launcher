@@ -449,6 +449,12 @@ function tile(a) {
   desc.textContent = a.description || '';
   el.appendChild(desc);
 
+  const where = document.createElement('div');
+  where.className = 'tile-path';
+  where.textContent = pathOf(a);
+  where.title = pathOf(a);
+  el.appendChild(where);
+
   const ep = document.createElement('div');
   ep.className = 'endpoint' + (a.url ? '' : ' none');
   ep.textContent = endpoint(a);
@@ -465,10 +471,12 @@ function tile(a) {
   if (tileVersion) meta.title = versionSource(a.name);
   el.appendChild(meta);
 
-  if (!a.path_exists) {
+  const gone = a.is_file ? a.file_exists === false : a.path_exists === false;
+  if (gone) {
+    where.classList.add('missing');
     const warn = document.createElement('div');
     warn.className = 'tile-warn';
-    warn.textContent = 'folder not found: ' + a.path;
+    warn.textContent = a.is_file ? 'file not found' : 'folder not found';
     el.appendChild(warn);
   }
 
@@ -557,6 +565,16 @@ function renderList() {
     desc.className = 'row-desc';
     desc.textContent = a.description || '';
     text.appendChild(desc);
+
+    const where = document.createElement('span');
+    const rowPath = pathOf(a);
+    const missing = a.is_file ? a.file_exists === false : a.path_exists === false;
+    where.className = 'row-path' + (missing ? ' missing' : '');
+    // Truncated in the cell; the full path is in the tooltip, since a Windows
+    // path is longer than any column worth giving it.
+    where.textContent = rowPath + (missing ? '  (missing)' : '');
+    where.title = rowPath;
+    text.appendChild(where);
     open.appendChild(text);
     row.appendChild(open);
 
@@ -815,6 +833,11 @@ function externalBadge() {
   tag.textContent = 'external';
   tag.title = EXTERNAL_HELP;
   return tag;
+}
+
+/* Where the thing actually lives: an app's folder, a document's file. */
+function pathOf(a) {
+  return a.is_file ? (a.file || '') : (a.path || '');
 }
 
 function versionOf(name) {

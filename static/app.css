@@ -289,7 +289,7 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
    columns to its left whenever a row had fewer of them. */
 .applist-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 150px 104px 150px 72px 300px;
+  grid-template-columns: minmax(0, 1.4fr) 138px 100px 148px 72px 300px;
   align-items: center;
   gap: 12px;
   padding: 11px 14px;
@@ -335,6 +335,27 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
 .row-name, .row-desc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row-name { font-weight: 600; }
 .row-desc { color: var(--dim); font-size: 12px; }
+.row-path {
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 11px;
+  color: var(--off);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;            /* keep the interesting end of a long path visible */
+  text-align: left;
+}
+.row-path.missing, .tile-path.missing { color: var(--warn); }
+.tile-path {
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 11px;
+  color: var(--off);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
 
 .row-endpoint {
   font-family: Consolas, "Cascadia Mono", monospace;
