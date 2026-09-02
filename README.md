@@ -1,10 +1,11 @@
-# App Launcher for Windows
+# App Launcher
 
 Starts the local apps you otherwise launch by hand after every reboot, and gives
-you a page to see and control them: one registry file, one PowerShell script, one
-scheduled task, and a small Flask UI.
+you a page to see and control them: one registry file, one Python engine, an
+autostart entry for your platform, and a small Flask UI.
 
-Needs PowerShell 5.1 and Python with Flask — nothing else to install.
+**Windows, Linux and macOS.** Needs Python 3.8+ and Flask. `psutil` is optional
+and recommended — see [Dependencies](#dependencies).
 
 ## What it does
 
@@ -16,21 +17,36 @@ Needs PowerShell 5.1 and Python with Flask — nothing else to install.
 
 ## Install
 
-```powershell
+```sh
 git clone https://github.com/<you>/apps-launcher.git launcher
 cd launcher
-pip install flask
-.\devapps.ps1 install      # start at logon; see The logon task
-python app.py              # then open http://127.0.0.1:5058/
+pip install -r requirements.txt
 ```
+
+Then, on **Linux or macOS**:
+
+```sh
+./devapps install          # start at login; see Autostart at login
+./devapps start            # or: python3 app.py
+```
+
+On **Windows** (either entry point works):
+
+```powershell
+.\devapps.ps1 install
+.\devapps.ps1 start
+```
+
+Open <http://127.0.0.1:5058/>.
 
 `apps.json` is created from `apps.example.json` on first run. A relative `dir` is
 resolved against the **parent** of this folder, so the natural layout is a
 projects directory with `launcher/` inside it — or use absolute paths and put it
 anywhere.
 
-Double-clicking **`Start App Launcher.cmd`** starts every `autostart` app and
-opens the page.
+To start everything and open the page in one go: double-click
+**`Start App Launcher.cmd`** on Windows, or run **`./start-app-launcher.sh`** on
+Linux/macOS.
 
 ## The web UI
 
@@ -58,48 +74,80 @@ so it must not be reachable from the network.
 
 ## CLI
 
-```powershell
-.\devapps.ps1 status              # what's up, and how that was determined
-.\devapps.ps1 status -Json        # machine-readable (what the web UI calls)
-.\devapps.ps1 start               # every app with autostart:true
-.\devapps.ps1 start myapp         # one app, autostart flag ignored
-.\devapps.ps1 restart myapp
-.\devapps.ps1 stop
-.\devapps.ps1 logs myapp          # tail stdout + stderr
-.\devapps.ps1 install             # run at logon
-.\devapps.ps1 uninstall
+```sh
+./devapps status              # what's up, and how that was determined
+./devapps status --json       # machine-readable
+./devapps start               # every app with autostart:true
+./devapps start myapp         # one app, autostart flag ignored
+./devapps start --all         # every registered app
+./devapps restart myapp
+./devapps stop
+./devapps logs myapp          # tail stdout + stderr
+./devapps install             # run at login
+./devapps install --dry-run   # show what would be registered, change nothing
+./devapps uninstall
 ```
+
+`./devapps` and `.\devapps.ps1` are thin wrappers around `devapps.py`; use
+whichever suits your shell (`python devapps.py status` works everywhere). The
+PowerShell wrapper translates `-Json` to `--json`, so a scheduled task or a habit
+that predates the Python engine keeps working.
 
 Starting is idempotent — an app already running is left alone, so `start` twice
 never gives you two copies fighting over a port.
 
-## The logon task
+## Dependencies
 
-`.\devapps.ps1 install` registers a scheduled task named **`App Launcher at
-logon`**:
+**Flask** for the UI. **`psutil` is optional**: without it the engine falls back
+to `ps` on Linux/macOS and PowerShell on Windows, which works but costs a second
+or two per status sweep on Windows. With it, a sweep is milliseconds. Nothing
+else — no service manager, no supervisor, no build step.
 
-```
-powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "<path>\devapps.ps1" start
-```
+## Autostart at login
 
-It triggers at logon for the current user with a **30-second delay**. The delay
-is deliberate: a Flask app that polls something on startup can start before the
-network stack is ready and fail its first DNS lookup. Raise it if you see that.
+`devapps install` registers "start every autostart app" with whatever your
+platform uses. `--dry-run` prints the definition and changes nothing, which is
+the safe way to see what you are about to get.
 
-The task **hard-codes the script path**, so re-run `install` if you ever move the
-folder. `uninstall` removes it (and also clears `DevApps at logon`, the name used
-before the project was renamed, so a machine can't end up running both).
+| Platform | What it creates |
+|---|---|
+| Windows | scheduled task **`App Launcher at logon`** (`schtasks`, ONLOGON) |
+| Linux | `~/.config/systemd/user/app-launcher.service`, then `systemctl --user enable --now` |
+| macOS | `~/Library/LaunchAgents/io.github.apps-launcher.plist`, then `launchctl load -w` |
+
+All three wait **30 seconds** first. That delay is deliberate: an app that polls
+something on startup can lose its first DNS lookup to a network stack that isn't
+up yet. `LOGON_DELAY` in `engine.py` changes it.
+
+Notes per platform:
+
+- **Windows** — the task hard-codes the script path, so re-run `install` if you
+  move the folder. `uninstall` also clears `DevApps at logon`, the name used
+  before the project was renamed, so a machine can't end up running both.
+- **Linux** — a user unit only runs while you have a session. On a headless box
+  where you want it up without logging in: `loginctl enable-linger $USER`. The
+  unit is `Type=oneshot` with `TimeoutStartSec=0`, because confirming that every
+  app bound its port can take longer than systemd's default start timeout.
+- **macOS** — launchd has no delay of its own, so the agent runs
+  `sh -c 'sleep 30; exec …'`. Its own output goes to `logs/autostart.log`.
 
 To check it without logging out:
 
-```powershell
-Get-ScheduledTaskInfo -TaskName 'App Launcher at logon'   # LastTaskResult 0 = fine
-Start-ScheduledTask   -TaskName 'App Launcher at logon'   # run it now
-.\devapps.ps1 status                                      # see what came up
+```sh
+./devapps status                  # see what came up
+# Windows
+Get-ScheduledTaskInfo -TaskName 'App Launcher at logon'
+Start-ScheduledTask   -TaskName 'App Launcher at logon'
+# Linux
+systemctl --user status app-launcher.service
+systemctl --user start  app-launcher.service
+# macOS
+launchctl list | grep apps-launcher
+launchctl start io.github.apps-launcher
 ```
 
-Because starting is idempotent, running the task while things are already up is
-harmless -- it skips them.
+Because starting is idempotent, running it while things are already up is
+harmless — it skips them.
 
 ## Registry
 
@@ -194,12 +242,13 @@ CSP `frame-ancestors` means the browser refuses the frame *silently*, so the pan
 names the header and offers a new tab instead. HTTPS apps get a warning too — a
 self-signed certificate can only be accepted in a real tab, never in a frame.
 
-**Don't capture a pipe when shelling out to the script.** An app it starts
-inherits the PowerShell child's handles, so a captured stdout pipe never reaches
-EOF while that app lives: `start` hangs forever instead of returning, and
-`subprocess`'s timeout doesn't save you either, because its timeout path
-re-blocks on the same pipe. `run_script()` writes to temp files and waits on
-process exit only.
+**The engine spawns apps itself rather than through a shell**, and that is not
+incidental. An earlier version shelled out to PowerShell, whose child inherited
+the captured stdout pipe — so the pipe never reached EOF while the started app
+was alive, `start` hung forever instead of returning, and `subprocess`'s timeout
+didn't save it either, because the timeout path re-blocks on the same pipe. Apps
+now get log **files** and are launched detached (`DETACHED_PROCESS` on Windows,
+`start_new_session` on POSIX), so nothing waits on a pipe that will never close.
 
 **This is not a service manager** — no restart-on-crash, no dependency ordering.
 These are local apps on one machine; a supervisor would be more moving parts than
@@ -209,8 +258,10 @@ the problem justifies.
 
 | Path | What |
 |---|---|
-| `devapps.ps1` | the engine: status / start / stop / restart / logs / install / uninstall |
-| `app.py` | the Flask UI; shells out to `devapps.ps1` for everything |
+| `engine.py` | the engine: registry, liveness, start/stop, autostart. All platform code is in three marked sections |
+| `devapps.py` | the CLI over that engine |
+| `devapps`, `devapps.ps1` | thin wrappers for sh and PowerShell |
+| `app.py` | the Flask UI; imports `engine.py`, so the page and the CLI can't disagree |
 | `templates/`, `static/` | the page; list, tiles and menu are rendered by `static/app.js` |
 | `apps.example.json` | the starting registry, copied to `apps.json` on first run |
 | `logs/`, `state/` | captured output and recorded PIDs (gitignored) |

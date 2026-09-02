@@ -1,0 +1,8 @@
+# Line endings, pinned deliberately: a shell script checked out with CRLF fails
+# on Linux and macOS with "bad interpreter", because the \r becomes part of the
+# interpreter path in the shebang.
+* text=auto eol=lf
+
+# ...except the Windows-only entry points, which want CRLF.
+*.ps1 text eol=crlf
+*.cmd text eol=crlf

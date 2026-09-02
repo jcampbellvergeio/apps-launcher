@@ -1,0 +1,8 @@
+# The web UI.
+flask>=3.0
+
+# Optional. Without it the engine still works everywhere: it falls back to
+# `ps` on Linux/macOS and PowerShell on Windows. With it, reading process
+# command lines and socket owners is markedly faster -- worth having on
+# Windows, where the fallback shells out to PowerShell for every status sweep.
+psutil>=5.9

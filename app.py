@@ -1,21 +1,17 @@
 """App Launcher -- web front end.
 
-A tile per registered app: open it, start/stop/restart it, see whether it is
-actually listening, and register a new one. Everything about liveness and
-launching is delegated to devapps.ps1, so the CLI and this page can never
-disagree about whether something is running.
+A row per registered app: open it, start/stop/restart it, see whether it is
+actually listening, register a new one. Everything about the registry, liveness
+and launching lives in engine.py, which the CLI uses too -- so the page and the
+command line cannot disagree about whether an app is running.
 
 Localhost only, by design: this process can start arbitrary commands.
 """
 
-import json
 import os
-import ssl
 import re
 import shlex
-import shutil
-import subprocess
-import tempfile
+import ssl
 import threading
 import time
 import urllib.error
@@ -23,22 +19,24 @@ import urllib.request
 
 from flask import Flask, jsonify, render_template, request
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-DEV_ROOT = os.path.dirname(ROOT)
-APPS_JSON = os.path.join(ROOT, "apps.json")
-APPS_EXAMPLE = os.path.join(ROOT, "apps.example.json")
-SCRIPT = os.path.join(ROOT, "devapps.ps1")
-LOG_DIR = os.path.join(ROOT, "logs")
-STATE_DIR = os.path.join(ROOT, "state")
-ICON_DIR = os.path.join(ROOT, "static", "icons")
+import engine
 
-# The registry's `type` field, not a hardcoded name, decides behaviour:
-#   "app"  (default) -- an ordinary app, embeddable in the viewer
-#   "self" -- this launcher. Selecting it shows the dashboard instead of
-#             framing the page inside itself, and it cannot be stopped,
-#             restarted or unregistered from its own UI.
-SELF_TYPE = "self"
-SELF_NAME = "launcher"        # fallback for a registry written before `type`
+# Paths and registry behaviour come from the engine; these are just local names
+# for them so the request handlers read cleanly.
+ROOT = engine.ROOT
+DEV_ROOT = engine.PARENT
+LOG_DIR = engine.LOG_DIR
+ICON_DIR = engine.ICON_DIR
+load_registry = engine.load_registry
+save_registry = engine.save_registry
+find_entry = engine.find_entry
+is_self_entry = engine.is_self_entry
+app_dir = engine.app_dir
+derive_match = engine.derive_match
+rename_side_files = engine.rename_side_files
+
+NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,31}$")
+
 # NOT 5060: browsers refuse that one outright, see UNSAFE_PORTS.
 PORT = int(os.environ.get("LAUNCHER_PORT") or 5058)
 
@@ -55,13 +53,6 @@ UNSAFE_PORTS = {
     6666, 6667, 6668, 6669, 6679, 6697, 10080,
 }
 
-NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,31}$")
-# Anything outside this set gets no auto-derived `match` pattern -- see rx().
-SAFE_FOR_RX = re.compile(r"^[A-Za-z0-9 _.\-]+$")
-
-# Windows: don't flash a console window for every shell-out.
-NO_WINDOW = 0x08000000 if os.name == "nt" else 0
-
 app = Flask(__name__)
 # This is a dev tool that gets edited while it runs; without this, Jinja caches
 # every template for the life of the process (debug=False turns auto-reload off)
@@ -75,72 +66,6 @@ _status_cache = {"at": 0.0, "rows": []}
 # --------------------------------------------------------------------------- #
 # registry
 # --------------------------------------------------------------------------- #
-
-def load_registry():
-    # A fresh clone has only the example: seed from it rather than failing, so
-    # the page comes up on first run.
-    if not os.path.exists(APPS_JSON) and os.path.exists(APPS_EXAMPLE):
-        shutil.copy2(APPS_EXAMPLE, APPS_JSON)
-    with open(APPS_JSON, encoding="utf-8-sig") as fh:
-        return json.load(fh)
-
-
-def save_registry(cfg):
-    """Write apps.json, keeping a one-deep backup.
-
-    No BOM: PowerShell 5.1 reads plain UTF-8 fine, and a BOM shows up as stray
-    characters in anything that reads the file as text.
-    """
-    if os.path.exists(APPS_JSON):
-        shutil.copy2(APPS_JSON, APPS_JSON + ".bak")
-    tmp = APPS_JSON + ".tmp"
-    with open(tmp, "w", encoding="utf-8", newline="\n") as fh:
-        json.dump(cfg, fh, indent=4)
-        fh.write("\n")
-    os.replace(tmp, APPS_JSON)
-
-
-def entry_type(entry):
-    return (entry.get("type") or "app").strip().lower()
-
-
-def is_self_entry(entry):
-    """True for the launcher itself. Type first, name only as a fallback so an
-    older apps.json still behaves correctly."""
-    return entry_type(entry) == SELF_TYPE or entry.get("name") == SELF_NAME
-
-
-def find_entry(cfg, name):
-    return next((a for a in cfg.get("apps", []) if a.get("name") == name), None)
-
-
-def rename_side_files(old, new, entry):
-    """Move the files named after an app: its logs, its recorded PID, and its
-    icon if the icon is the name-derived one.
-
-    Returns a list of human-readable problems. A file that cannot be moved is
-    reported rather than fatal -- the registry rename is the part that matters,
-    and a stuck log file only costs the old output.
-    """
-    problems = []
-    jobs = [(LOG_DIR, ".log"), (LOG_DIR, ".err.log"), (STATE_DIR, ".pid")]
-    # An explicit `icon` in the registry points somewhere deliberate; only the
-    # convention-named file follows the rename.
-    if not entry.get("icon"):
-        jobs.append((ICON_DIR, ".svg"))
-
-    for directory, suffix in jobs:
-        src = os.path.join(directory, old + suffix)
-        if not os.path.exists(src):
-            continue
-        dst = os.path.join(directory, new + suffix)
-        try:
-            os.replace(src, dst)
-        except OSError as exc:
-            problems.append("could not move %s%s (%s)"
-                            % (old, suffix, exc.__class__.__name__))
-    return problems
-
 
 def icon_for(entry):
     """URL of an app's icon.
@@ -157,105 +82,17 @@ def icon_for(entry):
     return "/static/icons/default.svg"
 
 
-def app_dir(entry):
-    d = entry.get("dir") or ""
-    return d if os.path.isabs(d) else os.path.join(DEV_ROOT, d)
+def read_status(max_age=1.5):
+    """Liveness for every app, from the engine.
 
-
-def rx(text):
-    r"""Regex-quote a path fragment WITHOUT using backslashes.
-
-    In a .NET regex \a is BEL, not a literal backslash, so a pattern built with
-    backslash escapes silently matches nothing. A plain . doubles as the path
-    separator here, and a literal dot becomes [.].
-    """
-    return text.replace(".", "[.]")
-
-
-def derive_match(directory, args):
-    """Build a command-line pattern: '<folder>.<script>', e.g. MyApp.app[.]py."""
-    leaf = os.path.basename(os.path.normpath(directory))
-    script = next((a for a in args if "." in a and not a.startswith("-")), None)
-    if not script or not SAFE_FOR_RX.match(leaf) or not SAFE_FOR_RX.match(script):
-        return ""
-    pattern = "%s.%s" % (rx(leaf), rx(script))
-    try:
-        re.compile(pattern)
-    except re.error:
-        return ""
-    return pattern
-
-
-# --------------------------------------------------------------------------- #
-# devapps.ps1
-# --------------------------------------------------------------------------- #
-
-def run_script(args, timeout=90):
-    """Run devapps.ps1 and return (exit code, stdout, stderr).
-
-    Output goes to temp FILES, not pipes. An app launched by the script
-    inherits the PowerShell child's handles, so a captured pipe never reaches
-    EOF while that app is alive -- `start` would hang forever rather than
-    return, and subprocess's own timeout path re-blocks on the same pipe.
-    Waiting on process exit alone sidesteps it.
-    """
-    cmd = ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
-           "-File", SCRIPT] + args
-
-    out_fd, out_path = tempfile.mkstemp(prefix="devapps-out-", suffix=".txt")
-    err_fd, err_path = tempfile.mkstemp(prefix="devapps-err-", suffix=".txt")
-
-    def slurp(path):
-        try:
-            with open(path, encoding="utf-8", errors="replace") as fh:
-                return fh.read()
-        except OSError:
-            return ""
-
-    try:
-        timed_out = False
-        with os.fdopen(out_fd, "w") as out, os.fdopen(err_fd, "w") as err:
-            try:
-                proc = subprocess.run(cmd, stdout=out, stderr=err,
-                                      stdin=subprocess.DEVNULL, timeout=timeout,
-                                      cwd=ROOT, creationflags=NO_WINDOW)
-                code = proc.returncode
-            except subprocess.TimeoutExpired:
-                code, timed_out = 1, True
-        text_out, text_err = slurp(out_path), slurp(err_path)
-        if timed_out:
-            text_err = ("timed out after %ss waiting for devapps.ps1\n%s"
-                        % (timeout, text_err)).strip()
-        return code, text_out, text_err
-    finally:
-        for path in (out_path, err_path):
-            try:
-                os.remove(path)
-            except OSError:
-                pass
-
-
-def read_status(max_age=2.0):
-    """Liveness for every app, from devapps.ps1 -Json.
-
-    Cached briefly: the underlying check walks every process on the box, so
-    several tabs polling at once would otherwise be wasteful.
+    Cached briefly: on Windows without psutil the sweep shells out to
+    PowerShell and costs a second or two, so several tabs polling at once would
+    otherwise be wasteful.
     """
     with _status_lock:
         if time.time() - _status_cache["at"] < max_age:
             return _status_cache["rows"]
-
-    code, out, err = run_script(["status", "-Json"], timeout=60)
-    rows = []
-    if out.strip():
-        try:
-            parsed = json.loads(out)
-            rows = parsed if isinstance(parsed, list) else [parsed]
-        except json.JSONDecodeError:
-            rows = []
-    if not rows and code != 0:
-        app.logger.warning("status failed: %s", (err or out).strip()[:400])
-
+    rows = engine.statuses()
     with _status_lock:
         _status_cache["at"] = time.time()
         _status_cache["rows"] = rows
@@ -270,7 +107,7 @@ def invalidate_status():
 def app_view():
     """Registry entries merged with live status, ready for the page."""
     cfg = load_registry()
-    by_name = {r.get("App"): r for r in read_status()}
+    by_name = {r.get("name"): r for r in read_status()}
     view = []
     for entry in cfg.get("apps", []):
         name = entry.get("name")
@@ -290,10 +127,10 @@ def app_view():
             "match": entry.get("match") or "",
             "autostart": bool(entry.get("autostart")),
             "note": entry.get("note") or "",
-            "running": row.get("Status") == "running",
-            "pid": row.get("PID"),
-            "via": row.get("Via") or "none",
-            "type": entry_type(entry),
+            "running": row.get("status") == "running",
+            "pid": row.get("pid"),
+            "via": row.get("via") or "none",
+            "type": engine.entry_type(entry),
             "is_self": is_self_entry(entry),
             "has_logs": os.path.exists(os.path.join(LOG_DIR, name + ".log")),
         })
@@ -337,13 +174,23 @@ def api_action(action, name=None):
         return jsonify({"ok": False, "error":
                         "the launcher cannot %s itself -- use the CLI" % action}), 400
 
-    args = [action] + ([name] if name else [])
-    # Start waits up to 10s per app for the port to bind, so a whole-fleet
-    # start needs real headroom.
-    timeout = 90 if name else 240
-    code, out, err = run_script(args, timeout=timeout)
+    # No name means the fleet: the apps marked autostart, exactly as the login
+    # task does it. A named app is acted on regardless of that flag.
+    targets = [entry] if entry else [a for a in engine.apps(cfg) if a.get("autostart")]
+
+    lines, ok_all = [], True
+    for target in targets:
+        if action in ("stop", "restart"):
+            ok, msg = engine.stop_app(target)
+            lines.append("%-16s %s" % (target["name"], msg))
+            ok_all = ok_all and ok
+        if action in ("start", "restart"):
+            ok, msg = engine.start_app(target)
+            lines.append("%-16s %s" % (target["name"], msg))
+            ok_all = ok_all and ok
+
     invalidate_status()
-    return jsonify({"ok": code == 0, "output": (out + err).strip()})
+    return jsonify({"ok": ok_all, "output": "\n".join(lines)})
 
 
 @app.route("/api/framable/<name>")
@@ -401,45 +248,9 @@ def api_framable(name):
 
 @app.route("/api/logs/<name>")
 def api_logs(name):
-    names = {a["name"] for a in load_registry().get("apps", [])}
-    if name not in names:
+    if not find_entry(load_registry(), name):
         return jsonify({"ok": False, "error": "unknown app"}), 404
-    chunks = []
-    for suffix in (".log", ".err.log"):
-        path = os.path.join(LOG_DIR, name + suffix)
-        if not os.path.exists(path):
-            continue
-        with open(path, encoding="utf-8", errors="replace") as fh:
-            tail = fh.read()[-8000:]
-        if tail.strip():
-            chunks.append("--- %s%s ---\n%s" % (name, suffix, tail))
-    if chunks:
-        return jsonify({"ok": True, "text": "\n\n".join(chunks)})
-
-    # No file, which is not the same as no output. The launcher can only
-    # capture what it started itself, so say which case this is instead of
-    # showing an empty box.
-    row = next((r for r in read_status() if r.get("App") == name), {})
-    running = row.get("Status") == "running"
-    via = row.get("Via")
-    if running and via != "match":
-        text = ("No captured output for %s.\n\n"
-                "It is running, but not from a process the launcher started -- "
-                "status found it by %s, not by matching a command line it "
-                "launched. Its output went to whatever shell started it.\n\n"
-                "Restart it here and the launcher will capture stdout and stderr "
-                "to logs/%s.log and logs/%s.err.log."
-                % (name, "its listening port" if via == "port" else "a recorded PID",
-                   name, name))
-    elif running:
-        text = ("No output captured for %s yet -- it has written nothing to "
-                "stdout or stderr since it started." % name)
-    else:
-        text = ("No log files for %s.\n\nIt is not running, and the launcher has "
-                "not started it since the last time the logs were cleared. Logs "
-                "appear at logs/%s.log once it is started from here."
-                % (name, name))
-    return jsonify({"ok": True, "text": text})
+    return jsonify({"ok": True, "text": engine.logs_tail(name)})
 
 
 class Invalid(ValueError):
@@ -619,15 +430,15 @@ def api_update(name):
     if renaming:
         # The launcher cannot stop itself to be relaunched, so its rename is
         # registry-and-files only; its own log file follows on the next restart.
-        was_running = any(r.get("App") == name and r.get("Status") == "running"
+        was_running = any(r.get("name") == name and r.get("status") == "running"
                           for r in read_status())
         relaunch = was_running and not is_self_entry(entry)
         if relaunch:
-            code, out, err = run_script(["stop", name], timeout=60)
-            if code != 0:
+            ok, msg = engine.stop_app(entry)
+            if not ok:
                 return jsonify({"ok": False, "error":
                                 "could not stop %s to rename it: %s"
-                                % (name, (err or out).strip()[:300])}), 500
+                                % (name, msg)}), 500
 
         problems = rename_side_files(name, wanted, entry)
         notes.extend(problems)
@@ -639,12 +450,11 @@ def api_update(name):
 
     final = entry["name"]
     if relaunch:
-        code, out, err = run_script(["start", final], timeout=120)
-        if code == 0 and "started" in out:
+        ok, msg = engine.start_app(entry)
+        if ok:
             notes.append("relaunched as %s" % final)
         else:
-            notes.append("renamed, but %s did not come back up -- check its logs"
-                         % final)
+            notes.append("renamed, but %s did not come back up: %s" % (final, msg))
     elif renaming and is_self_entry(entry):
         notes.append("restart the launcher for its own log files to use the new name")
     elif renaming:
