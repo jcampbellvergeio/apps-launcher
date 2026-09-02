@@ -20,7 +20,7 @@ Needs PowerShell 5.1 and Python with Flask — nothing else to install.
 git clone https://github.com/<you>/apps-launcher.git launcher
 cd launcher
 pip install flask
-.\devapps.ps1 install      # run at logon, 30s after
+.\devapps.ps1 install      # start at logon; see The logon task
 python app.py              # then open http://127.0.0.1:5058/
 ```
 
@@ -72,6 +72,34 @@ so it must not be reachable from the network.
 
 Starting is idempotent — an app already running is left alone, so `start` twice
 never gives you two copies fighting over a port.
+
+## The logon task
+
+`.\devapps.ps1 install` registers a scheduled task named **`App Launcher at
+logon`**:
+
+```
+powershell.exe -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "<path>\devapps.ps1" start
+```
+
+It triggers at logon for the current user with a **30-second delay**. The delay
+is deliberate: a Flask app that polls something on startup can start before the
+network stack is ready and fail its first DNS lookup. Raise it if you see that.
+
+The task **hard-codes the script path**, so re-run `install` if you ever move the
+folder. `uninstall` removes it (and also clears `DevApps at logon`, the name used
+before the project was renamed, so a machine can't end up running both).
+
+To check it without logging out:
+
+```powershell
+Get-ScheduledTaskInfo -TaskName 'App Launcher at logon'   # LastTaskResult 0 = fine
+Start-ScheduledTask   -TaskName 'App Launcher at logon'   # run it now
+.\devapps.ps1 status                                      # see what came up
+```
+
+Because starting is idempotent, running the task while things are already up is
+harmless -- it skips them.
 
 ## Registry
 
