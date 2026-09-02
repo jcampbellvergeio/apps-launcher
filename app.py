@@ -40,6 +40,12 @@ NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,31}$")
 # NOT 5060: browsers refuse that one outright, see UNSAFE_PORTS.
 PORT = int(os.environ.get("LAUNCHER_PORT") or 5058)
 
+# Loopback by default, deliberately: this process can start arbitrary commands,
+# so it must not be reachable from the network unless someone chooses that.
+# Inside a container loopback is unreachable from outside it, which is why the
+# demo image sets this to 0.0.0.0 -- there, the container boundary is the fence.
+HOST = os.environ.get("LAUNCHER_HOST") or "127.0.0.1"
+
 # Ports Chrome/Firefox refuse to load over http, with ERR_UNSAFE_PORT and no
 # hint that the port is the problem -- the server answers curl perfectly.
 # Registering an app here is almost always a mistake worth flagging. Chrome's
@@ -561,6 +567,8 @@ def api_autostart(name):
 
 
 if __name__ == "__main__":
-    # 127.0.0.1 only: this endpoint starts processes, so it must not be
-    # reachable from the network.
-    app.run(host="127.0.0.1", port=PORT, debug=False, threaded=True)
+    if HOST != "127.0.0.1":
+        app.logger.warning("listening on %s -- this endpoint starts processes, "
+                           "so only do this where something else fences it off "
+                           "(a container, a firewall)", HOST)
+    app.run(host=HOST, port=PORT, debug=False, threaded=True)

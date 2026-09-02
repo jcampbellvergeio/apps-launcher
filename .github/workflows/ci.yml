@@ -77,8 +77,15 @@ jobs:
           docker run -d --name launcher-ci -p 5058:5058 apps-launcher:ci
           for i in $(seq 1 40); do
             if curl -sf http://127.0.0.1:5058/api/status >/dev/null; then break; fi
+            # If it died, say why now rather than after the timeout.
+            if [ "$(docker inspect -f '{{.State.Running}}' launcher-ci)" != "true" ]; then
+              echo "container exited early:"; docker logs launcher-ci; exit 1
+            fi
             sleep 1
           done
+          if ! curl -sf http://127.0.0.1:5058/api/status >/dev/null; then
+            echo "no answer on 5058 after 40s; container log:"; docker logs launcher-ci; exit 1
+          fi
           curl -sf http://127.0.0.1:5058/ -o /dev/null -w 'index %{http_code}\n'
           curl -sf http://127.0.0.1:5058/api/status | python3 -c "import sys,json; d=json.load(sys.stdin); print('apps:', [(a['name'], a['running']) for a in d['apps']])"
 

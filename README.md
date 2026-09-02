@@ -70,7 +70,10 @@ and an `Open ↗` for a real tab. The selection lives in the URL hash
 `/status` is the same data as a table, with the signal behind each verdict.
 
 Bound to `127.0.0.1` only, deliberately: the page can start arbitrary commands,
-so it must not be reachable from the network.
+so it must not be reachable from the network. `LAUNCHER_HOST` overrides that and
+`LAUNCHER_PORT` the port — only set the host where something else fences the
+port off, which is why the demo image sets `0.0.0.0` (the container boundary
+does that job) and nothing else should.
 
 ## CLI
 

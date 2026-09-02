@@ -32,6 +32,11 @@ RUN cp -r /app/launcher/demo/HelloApi /app/HelloApi \
  && cp -r /app/launcher/demo/Clock    /app/Clock \
  && cp /app/launcher/docker/apps.json /app/launcher/apps.json
 
+# The UI binds loopback by default, which inside a container is unreachable
+# from outside it -- `-p 5058:5058` forwards to the container's own interface.
+# Safe here because the container boundary is the fence.
+ENV LAUNCHER_HOST=0.0.0.0
+
 EXPOSE 5058 5061 5062
 
 HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
