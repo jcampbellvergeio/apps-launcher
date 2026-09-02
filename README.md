@@ -323,8 +323,8 @@ from the request. A path that isn't there is refused at registration, and a file
 that disappears later shows as **file missing** rather than a broken frame.
 
 The two kinds have their own entry points, so neither form asks you what you
-meant: **+ Register an app** in the menu is app-only, and **+ Add file** sits in
-the `Files` header in the list. That header renders even when nothing is
+meant. Both the menu headings and the list's **Apps** and **Files** header rows
+carry the `+` for their own kind. That header renders even when nothing is
 registered — otherwise there would be nowhere to add the first document. Type is
 fixed once registered, so editing shows the right form automatically.
 

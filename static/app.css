@@ -372,11 +372,13 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
   border-top: 1px solid #2f6ba8;
   border-bottom: 1px solid #2f6ba8;
 }
+.applist-head:first-child { border-top: 0; }
+/* The note sits with the label; the button keeps to the right. */
+.applist-head .head-none { margin-right: auto; }
 .applist-head .applist-section { color: #fff; font-weight: 600; }
 .applist-head .applist-section { padding: 0; }
 .head-add { margin-left: auto; }
 .head-none { color: var(--off); font-size: 12px; }
-.head-none + .head-add, .applist-head .head-add { margin-left: auto; order: 2; }
 .applist-row:hover { background: var(--panel-2); }
 .applist-row.missing { box-shadow: inset 3px 0 0 var(--warn); }
 

@@ -555,26 +555,36 @@ function renderList() {
   const ordered = [...processes, ...files];
   let dividerDone = false;
 
-  /* The Files heading carries its own add button, and renders even when nothing
-     is registered -- otherwise there would be nowhere to add the first one. */
-  const filesHeader = () => {
+  /* Each group gets the same header: a band, its own add button, and a note
+     when it is empty. Both render even with nothing in them -- otherwise there
+     would be nowhere to add the first entry. */
+  const groupHeader = (title, action, addLabel, empty, emptyNote) => {
     const head = document.createElement('div');
     head.className = 'applist-head';
     const label = document.createElement('div');
     label.className = 'applist-section';
-    label.textContent = 'Files';
+    label.textContent = title;
     head.appendChild(label);
-    const btn = actionButton('+ Add file', 'addfile', '');
-    btn.classList.add('head-add');
-    head.appendChild(btn);
-    if (!files.length) {
+    if (empty) {
       const none = document.createElement('span');
       none.className = 'head-none';
-      none.textContent = 'no documents registered yet';
+      none.textContent = emptyNote;
       head.appendChild(none);
     }
+    const btn = actionButton(addLabel, action, '');
+    btn.classList.add('head-add');
+    head.appendChild(btn);
     return head;
   };
+
+  const appsHeader = () => groupHeader(
+    'Apps', 'addapp', '+ Register an app',
+    !processes.length, 'no apps registered yet');
+  const filesHeader = () => groupHeader(
+    'Files', 'addfile', '+ Add file',
+    !files.length, 'no documents registered yet');
+
+  list.appendChild(appsHeader());
 
   ordered.forEach(a => {
     if (a.is_file && !dividerDone) {
@@ -922,6 +932,7 @@ document.addEventListener('click', (ev) => {
     if (action === 'edit') return void openForm(byName(name));
     if (action === 'open') return void openApp(name);
     if (action === 'addfile') return void openForm(null, 'file');
+    if (action === 'addapp') return void openForm(null, 'app');
     if (action === 'autostart') return void toggleAutostart(name);
     if (action === 'reframe') return void reframe(name);
     return void act(action, name, btn);
@@ -945,8 +956,6 @@ if (refreshBtn) refreshBtn.addEventListener('click', () => {
   refresh();
   loadVersions(true);      // an app may have been rebuilt under us
 });
-const dashAdd = $('#dash-add');
-if (dashAdd) dashAdd.addEventListener('click', () => openForm(null, 'app'));
 $$('[data-view]').forEach(b => b.addEventListener('click', () => setLayout(b.dataset.view)));
 if ($('#list')) {
   // Restore the stored layout before the first render, not after.
