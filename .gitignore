@@ -5,9 +5,12 @@ __pycache__/
 
 # Your own registry and its backups: apps.json is seeded from
 # apps.example.json on first run and stays local.
-apps.json
-apps.json.bak
-apps.json.tmp
+#
+# Leading slashes matter. A bare `apps.json` matches that name at ANY depth in
+# git, which silently excluded docker/apps.json from the repo.
+/apps.json
+/apps.json.bak
+/apps.json.tmp
 
 # Private working notes
 MEMORY.md

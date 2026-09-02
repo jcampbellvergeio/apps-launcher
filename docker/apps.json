@@ -1,0 +1,47 @@
+{
+    "_comment": "Registry used by the Docker demo image. The two demo apps live one folder up, beside launcher/.",
+    "apps": [
+        {
+            "name": "launcher",
+            "dir": "launcher",
+            "command": "python",
+            "args": [
+                "app.py"
+            ],
+            "port": 5058,
+            "url": "http://127.0.0.1:5058/",
+            "autostart": false,
+            "description": "This page. In the demo image it runs as the container's main process",
+            "match": "launcher.app[.]py",
+            "type": "self"
+        },
+        {
+            "name": "hello-api",
+            "dir": "HelloApi",
+            "command": "python",
+            "args": [
+                "app.py"
+            ],
+            "port": 5061,
+            "url": "http://127.0.0.1:5061/",
+            "autostart": true,
+            "description": "A JSON endpoint, to show log capture and liveness",
+            "match": "HelloApi.app[.]py",
+            "type": "app"
+        },
+        {
+            "name": "clock",
+            "dir": "Clock",
+            "command": "python",
+            "args": [
+                "app.py"
+            ],
+            "port": 5062,
+            "url": "http://127.0.0.1:5062/",
+            "autostart": true,
+            "description": "A page that renders, to show the embedded viewer",
+            "match": "Clock.app[.]py",
+            "type": "app"
+        }
+    ]
+}

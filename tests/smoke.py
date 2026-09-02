@@ -160,6 +160,15 @@ def main():
     ok, msg = engine.stop_app(entry)
     check("stopping a stopped app is harmless", ok and "not running" in msg, msg)
 
+    # A start/stop in the SAME process is the case that exposed zombies: the
+    # child is ours, so nothing reaps it unless we do, and an unreaped child
+    # answers os.kill(pid, 0) forever.
+    ok, _ = engine.start_app(entry)
+    pid = engine.app_state(entry, engine.load_registry())["pid"]
+    ok, msg = engine.stop_app(entry)
+    check("same-process start/stop leaves nothing alive",
+          ok and not engine.pid_alive(pid), "%s (pid %s)" % (msg, pid))
+
     # --- a missing folder is reported, not raised ---------------------------
     ghost = dict(entry)
     ghost["name"] = "ghost"

@@ -54,6 +54,11 @@ try:                                     # optional, and only ever a fast path
 except Exception:                        # pragma: no cover - absence is normal
     psutil = None
 
+# pid -> Popen for apps this process started. Only used to reap them: on
+# POSIX a killed child stays a zombie until its parent waits, and a zombie
+# still answers os.kill(pid, 0), so an unreaped child looks alive forever.
+_spawned = {}
+
 for _d in (LOG_DIR, STATE_DIR):
     os.makedirs(_d, exist_ok=True)
 
@@ -495,25 +500,70 @@ def recorded_pid(entry):
     return None
 
 
+def _is_zombie(pid):
+    """Has the process exited but not yet been reaped?
+
+    A zombie is gone for every practical purpose -- but it still has a PID
+    entry, so os.kill(pid, 0) succeeds and it reads as alive. Windows has no
+    equivalent state.
+    """
+    if WINDOWS:
+        return False
+    if psutil is not None:
+        try:
+            return psutil.Process(int(pid)).status() == psutil.STATUS_ZOMBIE
+        except Exception:
+            return False
+    try:                              # Linux: field 3 of /proc/<pid>/stat
+        with open("/proc/%d/stat" % int(pid), encoding="utf-8") as fh:
+            fields = fh.read().rsplit(") ", 1)[-1].split()
+        return bool(fields) and fields[0] == "Z"
+    except OSError:
+        pass
+    try:                              # macOS and anything else with ps
+        res = subprocess.run(["ps", "-o", "state=", "-p", str(int(pid))],
+                             capture_output=True, text=True, timeout=5)
+        return res.stdout.strip().startswith("Z")
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return False
+
+
+def _reap(pid):
+    """Collect a child we started, so it stops being a zombie."""
+    proc = _spawned.pop(int(pid), None)
+    if proc is not None:
+        try:
+            proc.wait(timeout=5)
+            return
+        except Exception:
+            pass
+    if not WINDOWS:
+        try:
+            os.waitpid(int(pid), os.WNOHANG)
+        except (ChildProcessError, OSError, ValueError):
+            pass                      # not our child, so someone else reaps it
+
+
 def pid_alive(pid):
     if not pid:
         return False
     if psutil is not None:
         try:
-            return psutil.pid_exists(int(pid))
+            proc = psutil.Process(int(pid))
+            return proc.status() != psutil.STATUS_ZOMBIE
         except Exception:
-            pass
+            return False
     if WINDOWS:
         return any(p == int(pid) for p, _ in list_processes())
     try:
         os.kill(int(pid), 0)          # signal 0 only tests for existence
-        return True
     except ProcessLookupError:
         return False
     except PermissionError:
         return True                   # exists, owned by someone else
     except (OSError, ValueError):
         return False
+    return not _is_zombie(pid)
 
 
 def app_state(entry, cfg=None, processes=None):
@@ -618,6 +668,7 @@ def start_app(entry):
     except OSError as exc:
         return False, "could not start: %s" % exc
 
+    _spawned[proc.pid] = proc
     with open(os.path.join(STATE_DIR, name + ".pid"), "w", encoding="utf-8") as fh:
         fh.write(str(proc.pid))
 
@@ -653,6 +704,7 @@ def _terminate(pid):
                     target.kill()
                 except Exception:
                     pass
+            _spawned.pop(int(pid), None)
             return True
         except Exception:
             pass
@@ -661,6 +713,7 @@ def _terminate(pid):
         res = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
                              capture_output=True, text=True,
                              creationflags=0x08000000)
+        _reap(pid)
         return res.returncode == 0
 
     import signal
@@ -675,9 +728,11 @@ def _terminate(pid):
             except (ProcessLookupError, OSError):
                 return True
         for _ in range(10):
+            _reap(pid)                # else our own child lingers as a zombie
             if not pid_alive(pid):
                 return True
             time.sleep(0.3)
+    _reap(pid)
     return not pid_alive(pid)
 
 
