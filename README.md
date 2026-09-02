@@ -1,10 +1,10 @@
-# App Launcher
+# App Launcher for Windows
 
 Starts the local apps you otherwise launch by hand after every reboot, and gives
 you a page to see and control them: one registry file, one PowerShell script, one
 scheduled task, and a small Flask UI.
 
-Windows. PowerShell 5.1 and Python with Flask — nothing else to install.
+Needs PowerShell 5.1 and Python with Flask — nothing else to install.
 
 ## What it does
 
