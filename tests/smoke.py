@@ -100,9 +100,14 @@ def main():
 
     # --- process listing: the signal everything else depends on -------------
     procs = engine.list_processes()
-    check("process listing returns entries", len(procs) > 5, "got %d" % len(procs))
+    # No threshold beyond "not empty": a container can legitimately have four
+    # processes, and asserting a busy machine tests the environment, not this.
+    check("process listing is non-empty", len(procs) >= 1, "got %d" % len(procs))
+    # This is the assertion that matters -- the listing has to include a process
+    # we can verify by hand, or none of the liveness logic means anything.
     check("this interpreter appears in the listing",
-          any(str(os.getpid()) == str(pid) for pid, _ in procs))
+          any(str(os.getpid()) == str(pid) for pid, _ in procs),
+          "%d processes listed" % len(procs))
 
     # --- before starting ---------------------------------------------------
     state = engine.app_state(entry, cfg)
