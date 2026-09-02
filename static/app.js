@@ -504,19 +504,36 @@ function renderList() {
 
   // Documents last, behind a divider: they have no status and nothing to
   // start, so mixing them into the app rows makes both harder to read.
-  const ordered = [...apps.filter(a => !a.is_file), ...apps.filter(a => a.is_file)];
+  const processes = apps.filter(a => !a.is_file);
+  const files = apps.filter(a => a.is_file);
+  const ordered = [...processes, ...files];
   let dividerDone = false;
+
+  /* The Files heading carries its own add button, and renders even when nothing
+     is registered -- otherwise there would be nowhere to add the first one. */
+  const filesHeader = () => {
+    const head = document.createElement('div');
+    head.className = 'applist-head';
+    const label = document.createElement('div');
+    label.className = 'applist-section';
+    label.textContent = 'Files';
+    head.appendChild(label);
+    const btn = actionButton('+ Add file', 'addfile', '');
+    btn.classList.add('head-add');
+    head.appendChild(btn);
+    if (!files.length) {
+      const none = document.createElement('span');
+      none.className = 'head-none';
+      none.textContent = 'no documents registered yet';
+      head.appendChild(none);
+    }
+    return head;
+  };
 
   ordered.forEach(a => {
     if (a.is_file && !dividerDone) {
       dividerDone = true;
-      const head = document.createElement('div');
-      head.className = 'applist-head';
-      const label = document.createElement('div');
-      label.className = 'applist-section';
-      label.textContent = 'Files';
-      head.appendChild(label);
-      list.appendChild(head);
+      list.appendChild(filesHeader());
     }
     const row = document.createElement('div');
     row.className = 'applist-row' + (a.path_exists ? '' : ' missing');
@@ -613,6 +630,8 @@ function renderList() {
 
     list.appendChild(row);
   });
+
+  if (!files.length) list.appendChild(filesHeader());
 }
 
 function setLayout(next) {
@@ -632,7 +651,7 @@ function renderGrid() {
   const add = document.createElement('article');
   add.className = 'tile add';
   add.innerHTML = '<div class="plus">+</div><div>Register an app</div>';
-  add.addEventListener('click', () => openForm(null));
+  add.addEventListener('click', () => openForm(null, 'app'));
   grid.appendChild(add);
 }
 
@@ -903,6 +922,7 @@ document.addEventListener('click', (ev) => {
     if (action === 'grid') return void openGrid();
     if (action === 'edit') return void openForm(byName(name));
     if (action === 'open') return void openApp(name);
+    if (action === 'addfile') return void openForm(null, 'file');
     if (action === 'autostart') return void toggleAutostart(name);
     if (action === 'reframe') return void reframe(name);
     return void act(action, name, btn);
@@ -927,7 +947,7 @@ if (refreshBtn) refreshBtn.addEventListener('click', () => {
   loadVersions(true);      // an app may have been rebuilt under us
 });
 const dashAdd = $('#dash-add');
-if (dashAdd) dashAdd.addEventListener('click', () => openForm(null));
+if (dashAdd) dashAdd.addEventListener('click', () => openForm(null, 'app'));
 $$('[data-view]').forEach(b => b.addEventListener('click', () => setLayout(b.dataset.view)));
 if ($('#list')) {
   // Restore the stored layout before the first render, not after.
@@ -946,6 +966,7 @@ document.addEventListener('keydown', (ev) => {
 
 const dialog = $('#add-dialog');
 let editing = null;     // the app being edited, or null when registering
+let formKind = 'app';  // which shape the form is showing: 'app' or 'file'
 
 /* One form for both jobs. Registering and editing validate identically on the
    server, so they should look identical here too -- the only difference is that
@@ -956,6 +977,7 @@ let editing = null;     // the app being edited, or null when registering
    editing -- type is fixed once registered. */
 function applyFormType(kind) {
   const isFile = kind === 'file';
+  formKind = kind;
   $$('.app-only').forEach(el => { el.hidden = isFile; });
   $$('.file-only').forEach(el => { el.hidden = !isFile; });
   const form = $('#add-form');
@@ -963,10 +985,11 @@ function applyFormType(kind) {
   form.file.required = isFile;
 }
 
-function openForm(app) {
+function openForm(app, kind) {
   if (!dialog) {
     // The form only lives on the tiles page; from /status, go there and open it.
-    window.location.href = app ? '/#edit/' + encodeURIComponent(app.name) : '/#add';
+    window.location.href = app ? '/#edit/' + encodeURIComponent(app.name)
+                              : (kind === 'file' ? '/#addfile' : '/#add');
     return;
   }
   const form = $('#add-form');
@@ -975,10 +998,7 @@ function openForm(app) {
   form.reset();
 
   if (editing) {
-    const kind = editing.is_file ? 'file' : 'app';
-    form.type.value = kind;
-    form.type.disabled = true;      // fixed once registered
-    applyFormType(kind);
+    applyFormType(editing.is_file ? 'file' : 'app');
     if (editing.is_file) form.file.value = editing.file || '';
     $('#form-title').textContent = 'Edit ' + editing.name;
     $('#form-hint').innerHTML = 'Saved to <code>apps.json</code>. '
@@ -999,13 +1019,21 @@ function openForm(app) {
     form.version_cmd.value = editing.version_cmd || '';
     form.autostart.checked = !!editing.autostart;
   } else {
-    form.type.disabled = false;
-    form.type.value = 'app';
-    applyFormType('app');
-    $('#form-title').textContent = 'Register an app';
-    $('#form-hint').innerHTML = 'Written to <code>apps.json</code>, so it starts at '
-      + 'logon too.';
-    $('#form-submit').textContent = 'Add app';
+    const wanted = kind === 'file' ? 'file' : 'app';
+    applyFormType(wanted);
+    if (wanted === 'file') {
+      $('#form-title').textContent = 'Add a file';
+      $('#form-hint').innerHTML = 'A document to open in the browser. The launcher '
+        + 'serves it, so it works in a tab and in the pane.';
+      $('#form-submit').textContent = 'Add file';
+      $('#name-help').textContent = 'Lowercase. Used in the URL the launcher '
+        + 'serves it at.';
+    } else {
+      $('#form-title').textContent = 'Register an app';
+      $('#form-hint').innerHTML = 'Written to <code>apps.json</code>, so it starts at '
+        + 'logon too.';
+      $('#form-submit').textContent = 'Add app';
+    }
     $('#name-help').textContent = 'Lowercase. Used for the log filenames and the CLI.';
     form.command.value = 'python';
     form.autostart.checked = true;
@@ -1013,10 +1041,8 @@ function openForm(app) {
   dialog.showModal();
 }
 
-$('#side-add').addEventListener('click', () => openForm(null));
-const typeSelect = $('#form-type');
-if (typeSelect) typeSelect.addEventListener('change',
-  () => applyFormType(typeSelect.value));
+$('#side-add').addEventListener('click', () => openForm(null, 'app'));
+
 
 if (dialog) {
   const form = $('#add-form');
@@ -1029,7 +1055,7 @@ if (dialog) {
     err.hidden = true;
     const fd = new FormData(form);
     const payload = {
-      type: fd.get('type'),
+      type: formKind,
       file: fd.get('file'),
       name: fd.get('name'),
       dir: fd.get('dir'),
@@ -1079,10 +1105,11 @@ if (dialog) {
 function handleFormLink() {
   if (!dialog) return;
   const hash = window.location.hash;
-  if (hash !== '#add' && !hash.startsWith('#edit/')) return;
+  if (hash !== '#add' && hash !== '#addfile' && !hash.startsWith('#edit/')) return;
   // Clear it, or a reload reopens the form.
   history.replaceState(null, '', window.location.pathname);
-  if (hash === '#add') return openForm(null);
+  if (hash === '#add') return openForm(null, 'app');
+  if (hash === '#addfile') return openForm(null, 'file');
   const found = byName(decodeURIComponent(hash.slice(6)));
   if (found) openForm(found);
 }

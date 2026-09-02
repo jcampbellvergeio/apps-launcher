@@ -295,8 +295,11 @@ never opened. Only the exact registered path is served — nothing is derived
 from the request. A path that isn't there is refused at registration, and a file
 that disappears later shows as **file missing** rather than a broken frame.
 
-Register one from the **+** form by switching **Type** to *File*; the form
-swaps to the fields that apply. Type is fixed once registered.
+The two kinds have their own entry points, so neither form asks you what you
+meant: **+ Register an app** in the menu is app-only, and **+ Add file** sits in
+the `Files` header in the list. That header renders even when nothing is
+registered — otherwise there would be nowhere to add the first document. Type is
+fixed once registered, so editing shows the right form automatically.
 
 ## Editing and renaming
 

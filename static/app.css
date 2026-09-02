@@ -307,11 +307,17 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
   letter-spacing: .07em;
 }
 .applist-head {
-  display: grid;
-  padding: 8px 14px 2px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 7px 14px;
   background: var(--panel-2);
   border-bottom: 1px solid var(--line);
 }
+.applist-head .applist-section { padding: 0; }
+.head-add { margin-left: auto; }
+.head-none { color: var(--off); font-size: 12px; }
+.head-none + .head-add, .applist-head .head-add { margin-left: auto; order: 2; }
 .applist-row:hover { background: var(--panel-2); }
 .applist-row.missing { box-shadow: inset 3px 0 0 var(--warn); }
 
