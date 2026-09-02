@@ -1,0 +1,10 @@
+.git
+.github
+logs
+state
+apps.json
+apps.json.bak
+apps.json.tmp
+__pycache__
+*.pyc
+MEMORY.md

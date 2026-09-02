@@ -96,6 +96,23 @@ that predates the Python engine keeps working.
 Starting is idempotent — an app already running is left alone, so `start` twice
 never gives you two copies fighting over a port.
 
+## Try it in Docker
+
+```sh
+docker build -t apps-launcher .
+docker run --rm -p 5058:5058 apps-launcher
+```
+
+Then open <http://127.0.0.1:5058/>. The image ships two demo apps — a JSON
+endpoint and a clock page — so you can start, stop, embed and read logs from
+something without registering anything first.
+
+**This is a try-it image, not a deployment.** The launcher's job is to start and
+watch processes on *your* machine, and a container has its own PID, mount and
+network namespaces: a containerised launcher can only see and start processes
+inside the container, cannot manage the apps on your host, and cannot install a
+login item there either. Run it on the host for real use.
+
 ## Dependencies
 
 **Flask** for the UI. **`psutil` is optional**: without it the engine falls back
@@ -300,3 +317,17 @@ the problem justifies.
 | `templates/`, `static/` | the page; list, tiles and menu are rendered by `static/app.js` |
 | `apps.example.json` | the starting registry, copied to `apps.json` on first run |
 | `logs/`, `state/` | captured output and recorded PIDs (gitignored) |
+| `tests/smoke.py` | end-to-end check of the engine on the platform you're on |
+| `demo/`, `Dockerfile` | the two demo apps and the try-it image |
+
+## Tests
+
+```sh
+python tests/smoke.py
+```
+
+Twenty checks against a throwaway registry in a temp directory: process
+listing, port probing, spawning detached, idempotent start, log capture, both
+version paths, signalling, and the autostart definition for the platform you're
+on. It touches nothing of yours. CI runs it on Ubuntu, macOS and Windows, with
+and without `psutil`, so both engine paths are covered.

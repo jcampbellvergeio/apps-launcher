@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: ${{ matrix.os }} / py${{ matrix.python }} ${{ matrix.psutil && '+ psutil' || '(stdlib only)' }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Both engine paths matter: psutil is the fast path, and its absence
+        # exercises the per-platform fallbacks (`ps`, PowerShell, lsof/ss).
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.12"]
+        psutil: [true, false]
+        include:
+          - os: ubuntu-latest
+            python: "3.8"
+            psutil: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install Flask
+        run: pip install "flask>=3.0" || pip install flask
+
+      - name: Install psutil
+        if: matrix.psutil
+        run: pip install psutil
+
+      - name: Engine smoke test
+        run: python tests/smoke.py
+
+      - name: Autostart definition for this platform
+        run: python devapps.py install --dry-run
+
+      - name: CLI status against the example registry
+        run: |
+          python devapps.py status
+          python devapps.py status --json
+
+      - name: Web UI boots and answers
+        shell: bash
+        env:
+          LAUNCHER_PORT: "5199"
+        run: |
+          python app.py &
+          for i in $(seq 1 30); do
+            if curl -sf "http://127.0.0.1:5199/api/status" >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -sf "http://127.0.0.1:5199/"            -o /dev/null -w 'index  %{http_code}\n'
+          curl -sf "http://127.0.0.1:5199/status"      -o /dev/null -w 'status %{http_code}\n'
+          curl -sf "http://127.0.0.1:5199/api/status"  | python -c "import sys,json; d=json.load(sys.stdin); print('apps:', [a['name'] for a in d['apps']]); print('version:', d['launcher_version'])"
+          curl -sf "http://127.0.0.1:5199/api/versions" | python -c "import sys,json; print('versions ok:', json.load(sys.stdin)['ok'])"
+
+  docker:
+    name: docker demo image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: docker build -t apps-launcher:ci .
+
+      - name: Run the demo and check it serves
+        run: |
+          docker run -d --name launcher-ci -p 5058:5058 apps-launcher:ci
+          for i in $(seq 1 40); do
+            if curl -sf http://127.0.0.1:5058/api/status >/dev/null; then break; fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:5058/ -o /dev/null -w 'index %{http_code}\n'
+          curl -sf http://127.0.0.1:5058/api/status | python3 -c "import sys,json; d=json.load(sys.stdin); print('apps:', [(a['name'], a['running']) for a in d['apps']])"
+
+      - name: The demo apps actually start inside the container
+        run: |
+          docker exec launcher-ci python devapps.py start
+          docker exec launcher-ci python devapps.py status
+          docker exec launcher-ci python devapps.py status --json | python3 -c "import sys,json; rows=json.load(sys.stdin); up=[r['name'] for r in rows if r['status']=='running']; print('running:', up); sys.exit(0 if len(up) >= 2 else 'expected the demo apps to be running')"
+
+      - name: Engine smoke test inside the container
+        run: docker exec launcher-ci python tests/smoke.py
+
+      - name: Logs on failure
+        if: failure()
+        run: docker logs launcher-ci || true
+
+      - name: Stop
+        if: always()
+        run: docker rm -f launcher-ci || true
