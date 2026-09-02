@@ -9,6 +9,8 @@ autostart entry for your platform, and a small Flask UI.
 **Windows, Linux and macOS.** Needs Python 3.8+ and Flask. `psutil` is optional
 and recommended — see [Dependencies](#dependencies).
 
+![the list view](docs/sample.png)
+
 ## What it does
 
 - **Registry** — `apps.json` lists your apps: folder, command, args, port, URL.
@@ -376,7 +378,21 @@ the problem justifies.
 | `apps.example.json` | the starting registry, copied to `apps.json` on first run |
 | `logs/`, `state/` | captured output and recorded PIDs (gitignored) |
 | `tests/smoke.py` | end-to-end check of the engine on the platform you're on |
+| `docs/sample.html` | a screenshot fixture: the real UI with an invented fleet |
 | `demo/`, `Dockerfile` | the two demo apps and the try-it image |
+
+## The screenshot at the top
+
+`docs/sample.html` renders it. Open it in a browser and take the picture — it
+needs nothing running, because it loads the real `app.css` and `app.js` and
+stubs `fetch` with an invented fleet. Photographing the actual UI rather than a
+hand-drawn mock means the image cannot quietly drift away from the code, and no
+real hostnames, ports or paths can end up in it.
+
+The fixture deliberately shows the states worth seeing: apps running and
+stopped, one on https, an app identified by port rather than command line (the
+`external` badge), a version from each source and one with no source at all, and
+a document.
 
 ## Tests
 
