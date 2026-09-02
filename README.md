@@ -149,7 +149,11 @@ Notes per platform:
 - **Linux** — a user unit only runs while you have a session. On a headless box
   where you want it up without logging in: `loginctl enable-linger $USER`. The
   unit is `Type=oneshot` with `TimeoutStartSec=0`, because confirming that every
-  app bound its port can take longer than systemd's default start timeout.
+  app bound its port can take longer than systemd's default start timeout. Note
+  that apps started by the unit live in its cgroup, so
+  `systemctl --user stop app-launcher` (and `uninstall`, which disables it)
+  takes them down with it — use `devapps stop` if you only meant to stop the
+  apps.
 - **macOS** — launchd has no delay of its own, so the agent runs
   `sh -c 'sleep 30; exec …'`. Its own output goes to `logs/autostart.log`.
 
@@ -189,6 +193,12 @@ harmless — it skips them.
 
 Order in the file is order in the UI and in the logon start sequence, so
 reordering the menu rewrites this list.
+
+`command` is resolved on PATH, and **`python` and `python3` stand in for each
+other** — a registry written on Windows says `python`, which most Linux
+distributions don't ship, and the running interpreter is the last resort. So the
+same `apps.json` works on all three platforms. A command that genuinely isn't
+there is reported by name rather than as a bare `No such file or directory`.
 
 `match` matters more than it looks. Write it with **no backslashes** — use `.`
 for a path separator and `[.]` for a literal dot. A bare `\a` in a .NET regex is

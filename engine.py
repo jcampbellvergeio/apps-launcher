@@ -613,6 +613,30 @@ def statuses(cfg=None):
 # PLATFORM 3: starting and stopping
 # --------------------------------------------------------------------------- #
 
+PYTHON_NAMES = ("python", "python3", "python.exe", "python3.exe")
+
+
+def resolve_command(command):
+    """Absolute path for `command`, or None if it isn't on PATH.
+
+    `python` and `python3` stand in for each other, because a registry is not
+    tied to the machine it was written on: Windows installs `python` and most
+    Linux distributions only ship `python3`, so a registry moved either way
+    would otherwise fail to start every Python app. The running interpreter is
+    the last resort -- if this launcher is running, that one certainly works.
+    """
+    found = shutil.which(command)
+    if found:
+        return found
+    if os.path.basename(command).lower() in PYTHON_NAMES:
+        for alternative in ("python3", "python"):
+            found = shutil.which(alternative)
+            if found:
+                return found
+        return sys.executable
+    return None
+
+
 def _launch_argv(entry, workdir):
     """The argv to run, with script arguments expanded to absolute paths.
 
@@ -620,17 +644,14 @@ def _launch_argv(entry, workdir):
     bare `app.py` is not identifiable.
     """
     command = entry.get("command") or sys.executable
-    argv = [command]
+    argv = [resolve_command(command) or command]
     for arg in entry.get("args") or []:
         candidate = os.path.join(workdir, str(arg))
         argv.append(candidate if os.path.exists(candidate) else str(arg))
 
-    resolved = shutil.which(command)
-    if resolved:
-        argv[0] = resolved
-        # A Windows .cmd/.bat is a script, not an image: it needs an interpreter.
-        if WINDOWS and resolved.lower().endswith((".cmd", ".bat")):
-            argv = ["cmd.exe", "/c"] + argv
+    # A Windows .cmd/.bat is a script, not an image: it needs an interpreter.
+    if WINDOWS and argv[0].lower().endswith((".cmd", ".bat")):
+        argv = ["cmd.exe", "/c"] + argv
     return argv
 
 
@@ -648,6 +669,11 @@ def start_app(entry):
     workdir = app_dir(entry)
     if not os.path.isdir(workdir):
         return False, "folder not found: %s" % workdir
+
+    command = entry.get("command") or sys.executable
+    if resolve_command(command) is None:
+        return False, ("command %r is not on PATH -- set `command` to something "
+                       "this machine has" % command)
 
     out_path = os.path.join(LOG_DIR, name + ".log")
     err_path = os.path.join(LOG_DIR, name + ".err.log")

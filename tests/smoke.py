@@ -174,6 +174,26 @@ def main():
     check("same-process start/stop leaves nothing alive",
           ok and not engine.pid_alive(pid), "%s (pid %s)" % (msg, pid))
 
+    # --- a registry written on another OS still starts ---------------------
+    # `command: "python"` is what a Windows-written registry says, and most
+    # Linux distributions only ship `python3`. This is the check that would have
+    # caught that: the smoke test's own entries use sys.executable, which hides
+    # it completely.
+    portable = dict(entry)
+    portable["name"] = "portable"
+    portable["command"] = "python"
+    ok, msg = engine.start_app(portable)
+    check("an entry saying `python` starts on this OS", ok, msg)
+    if ok:
+        engine.stop_app(portable)
+
+    ghost_cmd = dict(entry)
+    ghost_cmd["name"] = "nocmd"
+    ghost_cmd["command"] = "definitely-not-a-real-command"
+    ok, msg = engine.start_app(ghost_cmd)
+    check("a command that isn't on PATH is reported clearly",
+          ok is False and "not on PATH" in msg, msg)
+
     # --- a missing folder is reported, not raised ---------------------------
     ghost = dict(entry)
     ghost["name"] = "ghost"
