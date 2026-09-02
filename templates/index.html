@@ -49,18 +49,32 @@
     <p class="hint" id="form-hint">Written to <code>apps.json</code>, so it starts at
       logon too.</p>
 
+    <label>Type
+      <select name="type" id="form-type">
+        <option value="app">App &mdash; a process to start and stop</option>
+        <option value="file">File &mdash; a document to open in the browser</option>
+      </select>
+    </label>
+
     <label>Name
       <input name="name" required placeholder="myapp" pattern="[a-z0-9][a-z0-9._\-]*"
              title="lowercase letters, digits, dot, underscore, hyphen">
       <small id="name-help">Lowercase. Used for the log filenames and the CLI.</small>
     </label>
 
-    <label>Path
-      <input name="dir" required placeholder="MyApp  or  C:\path\to\MyApp">
+    <!-- Only for type=file: everything below in .app-only is hidden then. -->
+    <label class="file-only" hidden>File
+      <input name="file" placeholder="C:\path\to\page.html">
+      <small>Served by the launcher, so it opens in a tab and renders in the
+        pane. A browser refuses a <code>file://</code> URL from an http page.</small>
+    </label>
+
+    <label class="app-only">Path
+      <input name="dir" placeholder="MyApp  or  C:\path\to\MyApp">
       <small>Folder name under <code>dev/</code>, or a full path. Must exist.</small>
     </label>
 
-    <div class="row">
+    <div class="row app-only">
       <label>Command
         <input name="command" value="python" required>
       </label>
@@ -69,7 +83,7 @@
       </label>
     </div>
 
-    <div class="row">
+    <div class="row app-only">
       <label>Port
         <input name="port" type="number" min="1" max="65535" placeholder="5061">
         <small>Blank if it isn't a server.</small>
@@ -83,7 +97,7 @@
       <input name="description" placeholder="what it is">
     </label>
 
-    <div class="row">
+    <div class="row app-only">
       <label>Version <span class="opt">optional</span>
         <input name="version" placeholder="blank = detect it">
         <small>A literal, used as typed.</small>
@@ -94,13 +108,13 @@
       </label>
     </div>
 
-    <label>Match pattern <span class="opt">optional</span>
+    <label class="app-only">Match pattern <span class="opt">optional</span>
       <input name="match" placeholder="derived from path + arguments">
       <small>Regex vs the process command line. No backslashes &mdash; use
         <code>.</code> for the path separator, <code>[.]</code> for a dot.</small>
     </label>
 
-    <label class="check">
+    <label class="check app-only">
       <input type="checkbox" name="autostart" checked>
       Start at logon
     </label>

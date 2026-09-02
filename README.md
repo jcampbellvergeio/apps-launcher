@@ -246,6 +246,7 @@ Resolution order, first hit wins:
 
 | Order | Source | Note |
 |---|---|---|
+| 0 | a `file` entry | the date the document last changed |
 | 1 | `"version"` in the registry | a literal, used as typed |
 | 2 | `"version_cmd"` in the registry | run in the app's folder; stdout, else stderr |
 | 3 | `VERSION` / `VERSION.txt` / `version.txt` | first non-empty line |
@@ -261,6 +262,36 @@ Versions are on their own endpoint (`/api/versions`) and cached for five
 minutes, because resolving one can mean running a command or shelling out to
 git — that has no business in the status sweep the page polls every few seconds.
 **Refresh** re-resolves them, and so does starting, restarting or editing an app.
+
+## Documents, not just apps
+
+An entry can be a **file** rather than a process — a dashboard you generated, a
+report, a set of notes:
+
+```json
+{
+  "name": "system-snapshot",
+  "type": "file",
+  "file": "C:\path\to\snapshot.html",
+  "description": "generated system snapshot"
+}
+```
+
+It appears in the menu and the list like anything else, with a **document**
+badge instead of a status lamp — "running" is meaningless for a file, so it
+never claims to be stopped. **View** opens it in the pane; `Open ↗` opens a tab.
+Its version column shows the date the file last changed. Start, stop, restart
+and logs all refuse it by name rather than failing obscurely.
+
+**The launcher serves the file itself**, at `/open/<name>`. That is not
+incidental: a browser refuses a `file://` URL both inside an iframe and as a
+link from an http page, so a registered document could otherwise be listed and
+never opened. Only the exact registered path is served — nothing is derived
+from the request. A path that isn't there is refused at registration, and a file
+that disappears later shows as **file missing** rather than a broken frame.
+
+Register one from the **+** form by switching **Type** to *File*; the form
+swaps to the fields that apply. Type is fixed once registered.
 
 ## Editing and renaming
 

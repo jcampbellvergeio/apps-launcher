@@ -42,6 +42,7 @@ AGENT_LABEL = "io.github.apps-launcher"  # launchd LaunchAgent
 LOGON_DELAY = 30                         # seconds; see install_autostart()
 
 SELF_TYPE = "self"
+FILE_TYPE = "file"                       # a document, not a process
 SELF_NAME = "launcher"                   # fallback for a registry predating `type`
 
 try:                                     # 3.11+; only used to read pyproject
@@ -107,6 +108,23 @@ def is_self_entry(entry):
     """True for the launcher itself. Type first, name only as a fallback so an
     older apps.json still behaves correctly."""
     return entry_type(entry) == SELF_TYPE or entry.get("name") == SELF_NAME
+
+
+def is_file_entry(entry):
+    """A `file` entry is a document to open, not a process to run.
+
+    It has no port, no command and no liveness -- "running" is meaningless for
+    a file, so every code path that would ask has to check this first.
+    """
+    return entry_type(entry) == FILE_TYPE
+
+
+def file_path(entry):
+    """Absolute path of a `file` entry's document."""
+    raw = entry.get("file") or entry.get("path") or ""
+    if not raw:
+        return ""
+    return raw if os.path.isabs(raw) else os.path.join(PARENT, raw)
 
 
 def app_dir(entry):
@@ -255,6 +273,11 @@ def app_version(entry, use_cache=True):
 
     if is_self_entry(entry):
         result = {"version": VERSION, "source": "App Launcher"}
+    elif is_file_entry(entry):
+        path = file_path(entry)
+        if os.path.exists(path):
+            stamp = time.strftime("%Y-%m-%d", time.localtime(os.path.getmtime(path)))
+            result = {"version": stamp, "source": "file modified"}
     elif entry.get("version"):
         # A literal in the registry: whatever you typed, used as-is.
         result = {"version": str(entry["version"])[:60], "source": "registry"}
@@ -568,6 +591,9 @@ def pid_alive(pid):
 
 def app_state(entry, cfg=None, processes=None):
     """{running, pid, via} for one app. `via` says which signal answered."""
+    if is_file_entry(entry):
+        # Not a process: `via` says so rather than reporting a false "stopped".
+        return {"running": False, "pid": None, "via": "file"}
     cfg = cfg or load_registry()
     processes = list_processes() if processes is None else processes
 
@@ -599,7 +625,8 @@ def statuses(cfg=None):
         state = app_state(entry, cfg, processes)
         rows.append({
             "name": entry.get("name"),
-            "status": "running" if state["running"] else "stopped",
+            "status": ("file" if is_file_entry(entry)
+                       else "running" if state["running"] else "stopped"),
             "pid": state["pid"],
             "via": state["via"],
             "port": entry.get("port"),
@@ -662,6 +689,8 @@ def start_app(entry):
     never produces two copies fighting over a port.
     """
     name = entry.get("name")
+    if is_file_entry(entry):
+        return False, "%s is a file, not a process -- open it instead" % name
     state = app_state(entry)
     if state["running"]:
         return True, "already running (pid %s)" % state["pid"]
@@ -765,6 +794,8 @@ def _terminate(pid):
 def stop_app(entry):
     """Stop one app. Returns (ok, message)."""
     name = entry.get("name")
+    if is_file_entry(entry):
+        return False, "%s is a file, not a process" % name
     state = app_state(entry)
     if not state["running"]:
         return True, "not running"

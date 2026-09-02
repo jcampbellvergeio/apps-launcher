@@ -427,6 +427,11 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
   flex: none;
 }
 .dot.on { background: var(--ok); box-shadow: 0 0 0 3px rgba(61, 220, 132, .16); }
+/* A file has no running state, so it gets a hollow marker rather than a lamp
+   that would read as "stopped". */
+.dot.file { background: transparent; border: 1px solid var(--off); }
+.row-state.file, .tag.file { color: var(--dim); }
+.tag.file { border-color: #3a4152; }
 
 .tag {
   font-size: 11px;
@@ -579,7 +584,15 @@ dialog input[type=text], dialog input[type=number], dialog input:not([type]) {
   background: var(--bg);
   color: var(--text);
 }
-dialog input:focus { outline: none; border-color: var(--accent); }
+dialog input:focus, dialog select:focus { outline: none; border-color: var(--accent); }
+dialog select {
+  font: inherit;
+  padding: 7px 9px;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+}
 dialog small { color: var(--dim); font-size: 11.5px; }
 .opt { color: var(--off); font-weight: 400; }
 .err { color: var(--bad); font-size: 13px; margin: 0; }

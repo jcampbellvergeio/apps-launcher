@@ -17,7 +17,7 @@ import time
 import urllib.error
 import urllib.request
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, abort, jsonify, render_template, request, send_file
 
 import engine
 
@@ -28,6 +28,8 @@ DEV_ROOT = engine.PARENT
 LOG_DIR = engine.LOG_DIR
 ICON_DIR = engine.ICON_DIR
 load_registry = engine.load_registry
+is_file_entry = engine.is_file_entry
+file_path = engine.file_path
 save_registry = engine.save_registry
 find_entry = engine.find_entry
 is_self_entry = engine.is_self_entry
@@ -85,6 +87,9 @@ def icon_for(entry):
     candidate = os.path.basename(named)
     if os.path.exists(os.path.join(ICON_DIR, candidate)):
         return "/static/icons/" + candidate
+    # A document gets the document icon, not the generic terminal one.
+    if is_file_entry(entry):
+        return "/static/icons/file.svg"
     return "/static/icons/default.svg"
 
 
@@ -138,6 +143,10 @@ def app_view():
             "via": row.get("via") or "none",
             "type": engine.entry_type(entry),
             "is_self": is_self_entry(entry),
+            "is_file": is_file_entry(entry),
+            "file": engine.file_path(entry) if is_file_entry(entry) else "",
+            "file_exists": (os.path.exists(engine.file_path(entry))
+                            if is_file_entry(entry) else None),
             "has_logs": os.path.exists(os.path.join(LOG_DIR, name + ".log")),
         })
     return view
@@ -160,6 +169,24 @@ def status_page():
 # --------------------------------------------------------------------------- #
 # api
 # --------------------------------------------------------------------------- #
+
+@app.route("/open/<name>")
+def open_file(name):
+    """Serve a `file` entry's document.
+
+    The launcher serves it rather than linking to `file://` because a browser
+    refuses a file:// URL both in an iframe and as a link from an http page --
+    so a registered document could otherwise be listed but never opened. Only
+    the exact registered path is served; nothing is derived from the request.
+    """
+    entry = find_entry(load_registry(), name)
+    if not entry or not is_file_entry(entry):
+        abort(404)
+    path = file_path(entry)
+    if not path or not os.path.isfile(path):
+        abort(404, "the registered file is not there: %s" % path)
+    return send_file(path, conditional=True)
+
 
 @app.route("/api/status")
 def api_status():
@@ -198,7 +225,12 @@ def api_action(action, name=None):
 
     # No name means the fleet: the apps marked autostart, exactly as the login
     # task does it. A named app is acted on regardless of that flag.
-    targets = [entry] if entry else [a for a in engine.apps(cfg) if a.get("autostart")]
+    targets = ([entry] if entry
+               else [a for a in engine.apps(cfg)
+                     if a.get("autostart") and not is_file_entry(a)])
+    if entry and is_file_entry(entry):
+        return jsonify({"ok": False, "error":
+                        "%s is a file, not a process -- open it instead" % name}), 400
 
     lines, ok_all = [], True
     for target in targets:
@@ -272,8 +304,12 @@ def api_framable(name):
 
 @app.route("/api/logs/<name>")
 def api_logs(name):
-    if not find_entry(load_registry(), name):
+    entry = find_entry(load_registry(), name)
+    if not entry:
         return jsonify({"ok": False, "error": "unknown app"}), 404
+    if is_file_entry(entry):
+        return jsonify({"ok": True, "text": "%s is a file, not a process -- "
+                                            "nothing writes logs for it." % name})
     return jsonify({"ok": True, "text": engine.logs_tail(name)})
 
 
@@ -283,6 +319,50 @@ class Invalid(ValueError):
     def __init__(self, message, status=400):
         super().__init__(message)
         self.status = status
+
+
+def parse_file_fields(data, cfg, current=None):
+    """Validate a `file` entry: a document to open, so almost nothing applies.
+
+    No port, no command, no args, no match pattern -- there is no process to
+    identify. The URL points at our own /open/<name>, because a browser will
+    not load a file:// URL from an http page or inside a frame.
+    """
+    existing = cfg.get("apps", [])
+    fields = {}
+
+    if current is None:
+        name = (data.get("name") or "").strip().lower()
+        if not NAME_RE.match(name):
+            raise Invalid("name must be lowercase letters, digits, . _ - (max 32)")
+        if any(a.get("name") == name for a in existing):
+            raise Invalid("'%s' is already registered" % name, 409)
+        fields["name"] = name
+    else:
+        name = current.get("name")
+
+    raw = (data.get("file") or data.get("dir") or "").strip().strip('"')
+    if not raw:
+        raise Invalid("path to the file is required")
+    resolved = raw if os.path.isabs(raw) else os.path.join(DEV_ROOT, raw)
+    resolved = os.path.normpath(resolved)
+    if not os.path.isfile(resolved):
+        raise Invalid("not a file: %s" % resolved)
+    fields["file"] = resolved
+
+    fields["description"] = (data.get("description") or "").strip()
+    fields["url"] = "/open/%s" % name
+    # Kept null rather than absent, so every entry has the same shape.
+    fields["port"] = None
+    fields["autostart"] = False
+
+    warning = None
+    lowered = resolved.lower()
+    if os.sep + "temp" + os.sep in lowered or os.sep + "tmp" + os.sep in lowered:
+        warning = ("that path is inside a temp directory, so the file may be "
+                   "deleted out from under the launcher -- copy it somewhere "
+                   "durable and re-point this entry")
+    return fields, warning
 
 
 def parse_fields(data, cfg, current=None):
@@ -400,23 +480,42 @@ def parse_fields(data, cfg, current=None):
 @app.route("/api/apps", methods=["POST"])
 def api_add():
     cfg = load_registry()
+    data = request.get_json(silent=True) or {}
+    kind = (data.get("type") or "app").strip().lower()
+    if kind not in ("app", "file"):
+        return jsonify({"ok": False, "error":
+                        "type must be 'app' or 'file'"}), 400
     try:
-        fields, warning = parse_fields(request.get_json(silent=True) or {}, cfg)
+        if kind == "file":
+            fields, warning = parse_file_fields(data, cfg)
+        else:
+            fields, warning = parse_fields(data, cfg)
     except Invalid as exc:
         return jsonify({"ok": False, "error": str(exc)}), exc.status
 
-    entry = {
-        "name": fields["name"],
-        "dir": fields["dir"],
-        "command": fields["command"],
-        "args": fields["args"],
-        "port": fields["port"],
-        "url": fields["url"],
-        "autostart": fields["autostart"],
-        "description": fields["description"],
-        "match": fields["match"],
-        "type": "app",
-    }
+    if kind == "file":
+        entry = {
+            "name": fields["name"],
+            "file": fields["file"],
+            "port": None,
+            "url": fields["url"],
+            "autostart": False,
+            "description": fields["description"],
+            "type": "file",
+        }
+    else:
+        entry = {
+            "name": fields["name"],
+            "dir": fields["dir"],
+            "command": fields["command"],
+            "args": fields["args"],
+            "port": fields["port"],
+            "url": fields["url"],
+            "autostart": fields["autostart"],
+            "description": fields["description"],
+            "match": fields["match"],
+            "type": "app",
+        }
     cfg.setdefault("apps", []).append(entry)
     save_registry(cfg)
     invalidate_status()
@@ -439,7 +538,10 @@ def api_update(name):
 
     data = request.get_json(silent=True) or {}
     try:
-        fields, warning = parse_fields(data, cfg, current=entry)
+        if is_file_entry(entry):
+            fields, warning = parse_file_fields(data, cfg, current=entry)
+        else:
+            fields, warning = parse_fields(data, cfg, current=entry)
     except Invalid as exc:
         return jsonify({"ok": False, "error": str(exc)}), exc.status
 
@@ -474,6 +576,8 @@ def api_update(name):
         entry["name"] = wanted
 
     entry.update(fields)
+    if is_file_entry(entry):
+        entry["url"] = "/open/%s" % entry["name"]
     save_registry(cfg)
     invalidate_status()
     engine.forget_version(name)

@@ -44,6 +44,15 @@
             "match": "ExampleNode.server[.]js",
             "type": "app",
             "version": "2.4.0"
+        },
+        {
+            "name": "example-doc",
+            "type": "file",
+            "file": "Docs/notes.html",
+            "port": null,
+            "url": "/open/example-doc",
+            "autostart": false,
+            "description": "A document to open in the browser - not a process"
         }
     ]
 }

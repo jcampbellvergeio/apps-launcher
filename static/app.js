@@ -129,7 +129,7 @@ function renderSidebar(route) {
     item.appendChild(label);
 
     const dot = document.createElement('span');
-    dot.className = 'dot' + (a.running ? ' on' : '');
+    dot.className = 'dot' + (a.is_file ? ' file' : a.running ? ' on' : '');
     item.appendChild(dot);
 
     nav.appendChild(item);
@@ -207,6 +207,7 @@ function actionButton(label, action, name, cls) {
    usable signal when a frame is refused, so this is the only honest answer. */
 async function frameNote(a) {
   const note = $('#viewer-note');
+  if (a.is_file) { note.hidden = true; return; }   // we serve it ourselves
   const link = '<a href="' + a.url + '" target="_blank" rel="noopener">Open it in a tab</a>';
   note.hidden = true;
   clearTimeout(frameTimer);
@@ -276,7 +277,10 @@ function setTopbar(a) {
   }
   $('#tb-name').textContent = a ? a.name : (PAGE === 'status' ? 'Status' : 'Apps');
   const openVersion = a ? versionOf(a.name) : '';
-  $('#tb-meta').textContent = a
+  $('#tb-meta').textContent = a && a.is_file
+    ? a.file + (a.file_exists ? '' : '  ·  MISSING')
+      + (openVersion ? '  ·  modified ' + openVersion : '')
+    : a
     ? (a.url || (a.port ? '127.0.0.1:' + a.port : 'no endpoint'))
       + (a.running ? '  ·  running · pid ' + a.pid + ' · via ' + a.via : '  ·  stopped')
       + (openVersion ? '  ·  ' + openVersion : '')
@@ -297,23 +301,26 @@ function renderViewer(a) {
     open.textContent = 'Open ↗';
     actions.appendChild(open);
   }
-  if (a.running && a.url) actions.appendChild(actionButton('Reload', 'reframe', a.name));
-  if (a.running) {
-    if (!a.is_self) {
-      actions.appendChild(actionButton('Restart', 'restart', a.name));
-      actions.appendChild(actionButton('Stop', 'stop', a.name));
+  if (a.url) actions.appendChild(actionButton('Reload', 'reframe', a.name));
+  if (!a.is_file) {
+    if (a.running) {
+      if (!a.is_self) {
+        actions.appendChild(actionButton('Restart', 'restart', a.name));
+        actions.appendChild(actionButton('Stop', 'stop', a.name));
+      }
+    } else {
+      actions.appendChild(actionButton('Start', 'start', a.name, 'primary'));
     }
-  } else {
-    actions.appendChild(actionButton('Start', 'start', a.name, 'primary'));
+    actions.appendChild(actionButton('Logs', 'logs', a.name));
   }
-  actions.appendChild(actionButton('Logs', 'logs', a.name));
   actions.appendChild(actionButton('Edit', 'edit', a.name));
   actions.appendChild(actionButton('All apps', 'grid', a.name, 'ghost'));
 
   const frame = $('#viewer-frame');
   const empty = $('#viewer-empty');
 
-  if (!a.running || !a.url) {
+  const showable = a.is_file ? a.file_exists : (a.running && a.url);
+  if (!showable) {
     // Don't point the frame at a dead port: the browser's own error page is
     // less informative than saying what to do about it.
     if (framedName !== null) { frame.src = 'about:blank'; framedName = null; }
@@ -322,15 +329,16 @@ function renderViewer(a) {
     empty.textContent = '';
     const big = document.createElement('div');
     big.className = 'big';
-    big.textContent = !a.url ? a.name + ' has no URL to show'
-                             : a.name + ' is not running';
+    big.textContent = a.is_file ? a.name + "'s file is not there"
+                    : !a.url ? a.name + ' has no URL to show'
+                    : a.name + ' is not running';
     empty.appendChild(big);
     const sub = document.createElement('div');
-    sub.textContent = !a.url
-      ? 'It is registered without a port, so there is nothing to embed.'
+    sub.textContent = a.is_file ? a.file
+      : !a.url ? 'It is registered without a port, so there is nothing to embed.'
       : 'Start it and the page will load here.';
     empty.appendChild(sub);
-    if (!a.running && a.url) {
+    if (!a.is_file && !a.running && a.url) {
       empty.appendChild(actionButton('Start ' + a.name, 'start', a.name, 'primary'));
     }
     $('#viewer-note').hidden = true;
@@ -403,7 +411,7 @@ function tile(a) {
   head.appendChild(name);
 
   const dot = document.createElement('span');
-  dot.className = 'dot' + (a.running ? ' on' : '');
+  dot.className = 'dot' + (a.is_file ? ' file' : a.running ? ' on' : '');
   head.appendChild(dot);
 
   const spacer = document.createElement('span');
@@ -412,8 +420,8 @@ function tile(a) {
 
   if (isExternal(a)) head.appendChild(externalBadge());
   const tag = document.createElement('span');
-  tag.className = 'tag' + (a.autostart ? ' auto' : '');
-  tag.textContent = a.autostart ? 'logon' : 'manual';
+  tag.className = 'tag' + (a.is_file ? ' file' : a.autostart ? ' auto' : '');
+  tag.textContent = a.is_file ? 'document' : a.autostart ? 'logon' : 'manual';
   head.appendChild(tag);
   el.appendChild(head);
 
@@ -430,7 +438,9 @@ function tile(a) {
   const meta = document.createElement('div');
   meta.className = 'tile-meta';
   const tileVersion = versionOf(a.name);
-  meta.textContent = (a.running
+  meta.textContent = a.is_file
+    ? (a.file_exists ? 'document' : 'file not found: ' + a.file)
+    : (a.running
     ? 'running · pid ' + a.pid + ' · via ' + a.via
     : 'stopped') + (tileVersion ? '  ·  ' + tileVersion : '');
   if (tileVersion) meta.title = versionSource(a.name);
@@ -451,13 +461,15 @@ function tile(a) {
     return b;
   };
 
-  if (a.running) {
+  if (a.is_file) {
+    add('View', 'open', 'primary');
+  } else if (a.running) {
     if (!a.is_self) { add('Restart', 'restart'); add('Stop', 'stop'); }
     else { add('Stop', 'stop').disabled = true; }
   } else {
     add('Start', 'start', 'primary');
   }
-  add('Logs', 'logs');
+  if (!a.is_file) add('Logs', 'logs');
   add('Edit', 'edit');
   if (!a.is_self) add('Remove', 'remove', 'danger');
 
@@ -520,24 +532,31 @@ function renderList() {
     row.appendChild(ver);
 
     const state = document.createElement('span');
-    state.className = 'row-state';
+    state.className = 'row-state' + (a.is_file ? ' file' : '');
     const dot = document.createElement('span');
     dot.className = 'dot' + (a.running ? ' on' : '');
     state.appendChild(dot);
     state.appendChild(document.createTextNode(
-      a.running ? 'running \u00b7 pid ' + a.pid : 'stopped'));
+      a.is_file ? (a.file_exists ? 'file' : 'file missing')
+                : a.running ? 'running \u00b7 pid ' + a.pid : 'stopped'));
     if (isExternal(a)) state.appendChild(externalBadge());
     row.appendChild(state);
 
     // Autostart is the one registry field worth flipping without the form.
-    const pill = document.createElement('button');
-    pill.className = 'pill' + (a.autostart ? ' on' : '');
-    pill.textContent = a.autostart ? 'logon' : 'manual';
-    pill.dataset.action = 'autostart';
-    pill.dataset.name = a.name;
-    pill.title = a.autostart
-      ? 'Starts at logon \u2014 click to make it manual'
-      : 'Manual only \u2014 click to start it at logon';
+    const pill = document.createElement(a.is_file ? 'span' : 'button');
+    if (a.is_file) {
+      pill.className = 'pill file';
+      pill.textContent = 'document';
+      pill.title = 'A file the launcher opens; never started or stopped';
+    } else {
+      pill.className = 'pill' + (a.autostart ? ' on' : '');
+      pill.textContent = a.autostart ? 'logon' : 'manual';
+      pill.dataset.action = 'autostart';
+      pill.dataset.name = a.name;
+      pill.title = a.autostart
+        ? 'Starts at logon \u2014 click to make it manual'
+        : 'Manual only \u2014 click to start it at logon';
+    }
     row.appendChild(pill);
 
     const actions = document.createElement('div');
@@ -545,13 +564,16 @@ function renderList() {
     const add = (label, action, cls) =>
       actions.appendChild(actionButton(label, action, a.name, cls));
 
-    if (a.running) {
+    if (a.is_file) {
+      // Nothing to start; the useful verbs are view and edit.
+      add('View', 'open', 'primary');
+    } else if (a.running) {
       if (!a.is_self) { add('Restart', 'restart'); add('Stop', 'stop'); }
     } else {
       add('Start', 'start', 'primary');
     }
     add('Edit', 'edit');
-    add('Logs', 'logs');
+    if (!a.is_file) add('Logs', 'logs');
     if (!a.is_self) add('Delete', 'remove', 'danger');
     row.appendChild(actions);
 
@@ -844,6 +866,7 @@ document.addEventListener('click', (ev) => {
     if (action === 'remove') return void remove(name);
     if (action === 'grid') return void openGrid();
     if (action === 'edit') return void openForm(byName(name));
+    if (action === 'open') return void openApp(name);
     if (action === 'autostart') return void toggleAutostart(name);
     if (action === 'reframe') return void reframe(name);
     return void act(action, name, btn);
@@ -892,6 +915,18 @@ let editing = null;     // the app being edited, or null when registering
    server, so they should look identical here too -- the only difference is that
    an existing app's name is fixed (renaming would orphan its log and pid
    files). */
+/* An app and a document need different fields, so the form shows one shape or
+   the other. Driven off the type select, and off the entry's own type when
+   editing -- type is fixed once registered. */
+function applyFormType(kind) {
+  const isFile = kind === 'file';
+  $$('.app-only').forEach(el => { el.hidden = isFile; });
+  $$('.file-only').forEach(el => { el.hidden = !isFile; });
+  const form = $('#add-form');
+  form.dir.required = !isFile;
+  form.file.required = isFile;
+}
+
 function openForm(app) {
   if (!dialog) {
     // The form only lives on the tiles page; from /status, go there and open it.
@@ -904,6 +939,11 @@ function openForm(app) {
   form.reset();
 
   if (editing) {
+    const kind = editing.is_file ? 'file' : 'app';
+    form.type.value = kind;
+    form.type.disabled = true;      // fixed once registered
+    applyFormType(kind);
+    if (editing.is_file) form.file.value = editing.file || '';
     $('#form-title').textContent = 'Edit ' + editing.name;
     $('#form-hint').innerHTML = 'Saved to <code>apps.json</code>. '
       + 'Restart the app for a command or path change to take effect.';
@@ -923,6 +963,9 @@ function openForm(app) {
     form.version_cmd.value = editing.version_cmd || '';
     form.autostart.checked = !!editing.autostart;
   } else {
+    form.type.disabled = false;
+    form.type.value = 'app';
+    applyFormType('app');
     $('#form-title').textContent = 'Register an app';
     $('#form-hint').innerHTML = 'Written to <code>apps.json</code>, so it starts at '
       + 'logon too.';
@@ -935,6 +978,9 @@ function openForm(app) {
 }
 
 $('#side-add').addEventListener('click', () => openForm(null));
+const typeSelect = $('#form-type');
+if (typeSelect) typeSelect.addEventListener('change',
+  () => applyFormType(typeSelect.value));
 
 if (dialog) {
   const form = $('#add-form');
@@ -947,6 +993,8 @@ if (dialog) {
     err.hidden = true;
     const fd = new FormData(form);
     const payload = {
+      type: fd.get('type'),
+      file: fd.get('file'),
       name: fd.get('name'),
       dir: fd.get('dir'),
       command: fd.get('command'),

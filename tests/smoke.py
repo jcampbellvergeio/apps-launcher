@@ -202,6 +202,28 @@ def main():
     check("missing folder is refused cleanly",
           ok is False and "not found" in msg, msg)
 
+    # --- a `file` entry is a document, not a process ------------------------
+    doc = os.path.join(tmp, "notes.html")
+    with open(doc, "w", encoding="utf-8") as fh:
+        fh.write("<h1>hello</h1>")
+    file_entry = {"name": "doc", "type": "file", "file": doc,
+                  "description": "a document"}
+    check("file entry is recognised as one", engine.is_file_entry(file_entry))
+    check("file path resolves", engine.file_path(file_entry) == doc)
+    fstate = engine.app_state(file_entry)
+    check("a file reports via=file, not stopped",
+          fstate["via"] == "file" and fstate["pid"] is None, fstate)
+    ok, msg = engine.start_app(file_entry)
+    check("starting a file is refused with a reason",
+          ok is False and "not a process" in msg, msg)
+    ok, msg = engine.stop_app(file_entry)
+    check("stopping a file is refused with a reason",
+          ok is False and "not a process" in msg, msg)
+    engine.forget_version("doc")
+    fver = engine.app_version(file_entry)
+    check("a file's version is its modified date",
+          fver["source"] == "file modified" and len(fver["version"]) == 10, fver)
+
     # --- autostart definition renders for this platform --------------------
     ok, rendered = engine.install_autostart(dry_run=True)
     check("autostart dry-run renders", ok and len(rendered) > 40, rendered[:120])
