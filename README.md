@@ -1,4 +1,4 @@
-# App Launcher
+# Apps Launcher
 
 Starts the local apps you otherwise launch by hand after every reboot, and gives
 you a page to see and control them: one registry file, one Python engine, an
@@ -192,8 +192,43 @@ answered, which is how much to trust it.
 `Via: port` on an app you thought the launcher started means it was started some
 other way — or its `match` is wrong.
 
+That case is worth spotting, so the UI marks it: a running app whose identity
+came from anything other than a command-line match gets an **`external`** badge.
+It runs fine, but **the launcher is not capturing its output** — the logs are
+going to whatever shell started it. This is easy to cause by accident: start an
+app by hand from its own folder and the command line is a bare `python app.py`,
+which the `match` pattern (built around the folder name) can't see, so liveness
+falls through to the port and logging is silently lost. Restarting it from the
+launcher fixes both.
+
 The web UI doesn't reimplement any of this: it shells out to
 `devapps.ps1 status -Json`, so the page and the CLI can't disagree.
+
+## Versions
+
+The launcher's own version shows at the foot of the menu. Each app gets a
+**version column** in the list (and its number in the tile, the status table and
+the topbar when it's open); hovering says which source answered.
+
+Resolution order, first hit wins:
+
+| Order | Source | Note |
+|---|---|---|
+| 1 | `"version"` in the registry | a literal, used as typed |
+| 2 | `"version_cmd"` in the registry | run in the app's folder; stdout, else stderr |
+| 3 | `VERSION` / `VERSION.txt` / `version.txt` | first non-empty line |
+| 4 | `package.json` | the `version` field |
+| 5 | `pyproject.toml` | `project.version`, or Poetry's |
+| 6 | `git describe --tags --always --dirty` | if the folder is a git repo |
+
+**Nothing is executed unless you set `version_cmd`.** Guessing at a command to
+run would be both unreliable and a way to run something unexpected; the file and
+git sources only read.
+
+Versions are on their own endpoint (`/api/versions`) and cached for five
+minutes, because resolving one can mean running a command or shelling out to
+git — that has no business in the status sweep the page polls every few seconds.
+**Refresh** re-resolves them, and so does starting, restarting or editing an app.
 
 ## Editing and renaming
 

@@ -19,6 +19,7 @@ let apps = [];
 let busy = false;      // an action is running: pause polling so nothing flickers
 let dragging = false;  // reordering the menu: a re-render would destroy the drag
 let layout = 'list';   // which dashboard layout is showing
+let versions = {};     // name -> {version, source}, from /api/versions
 let framedName = null; // app whose URL is currently loaded in the iframe
 let frameLoaded = false;
 let frameTimer = null;
@@ -274,9 +275,11 @@ function setTopbar(a) {
     icon.hidden = true;
   }
   $('#tb-name').textContent = a ? a.name : (PAGE === 'status' ? 'Status' : 'Apps');
+  const openVersion = a ? versionOf(a.name) : '';
   $('#tb-meta').textContent = a
     ? (a.url || (a.port ? '127.0.0.1:' + a.port : 'no endpoint'))
       + (a.running ? '  ·  running · pid ' + a.pid + ' · via ' + a.via : '  ·  stopped')
+      + (openVersion ? '  ·  ' + openVersion : '')
     : '';
 }
 
@@ -407,6 +410,7 @@ function tile(a) {
   spacer.className = 'spacer';
   head.appendChild(spacer);
 
+  if (isExternal(a)) head.appendChild(externalBadge());
   const tag = document.createElement('span');
   tag.className = 'tag' + (a.autostart ? ' auto' : '');
   tag.textContent = a.autostart ? 'logon' : 'manual';
@@ -425,9 +429,11 @@ function tile(a) {
 
   const meta = document.createElement('div');
   meta.className = 'tile-meta';
-  meta.textContent = a.running
+  const tileVersion = versionOf(a.name);
+  meta.textContent = (a.running
     ? 'running · pid ' + a.pid + ' · via ' + a.via
-    : 'stopped';
+    : 'stopped') + (tileVersion ? '  ·  ' + tileVersion : '');
+  if (tileVersion) meta.title = versionSource(a.name);
   el.appendChild(meta);
 
   if (!a.path_exists) {
@@ -506,6 +512,13 @@ function renderList() {
       row.appendChild(ep);
     }
 
+    const ver = document.createElement('span');
+    const rowVersion = versionOf(a.name);
+    ver.className = 'row-version' + (rowVersion ? '' : ' none');
+    ver.textContent = rowVersion || '\u2014';
+    ver.title = versionSource(a.name);
+    row.appendChild(ver);
+
     const state = document.createElement('span');
     state.className = 'row-state';
     const dot = document.createElement('span');
@@ -513,6 +526,7 @@ function renderList() {
     state.appendChild(dot);
     state.appendChild(document.createTextNode(
       a.running ? 'running \u00b7 pid ' + a.pid : 'stopped'));
+    if (isExternal(a)) state.appendChild(externalBadge());
     row.appendChild(state);
 
     // Autostart is the one registry field worth flipping without the form.
@@ -600,9 +614,16 @@ function renderTable() {
     appCell.appendChild(link);
     tr.appendChild(appCell);
 
+    const tableVersion = versionOf(a.name);
+    text(tableVersion || '\u2014', 'mono').title = versionSource(a.name);
+
     cell('<span class="state"><span class="dot' + (a.running ? ' on' : '') + '"></span>' +
          (a.running ? 'running' : 'stopped') + '</span>');
-    cell('<span class="via">' + (a.running ? a.via : '—') + '</span>');
+    const viaCell = cell('<span class="via">' + (a.running ? a.via : '—') + '</span>');
+    if (isExternal(a)) {
+      viaCell.title = EXTERNAL_HELP;
+      viaCell.firstChild.className = 'via external-text';
+    }
     text(a.running ? String(a.pid) : '—', 'mono');
     text(a.port ? String(a.port) : '—', 'mono');
 
@@ -683,6 +704,51 @@ function render() {
   renderSidebar(route);
 }
 
+/* ---------------------------------------------------------------- versions */
+
+/* Versions live on their own endpoint and their own schedule: resolving one can
+   mean running a command or shelling out to git, which has no business in the
+   status sweep the page polls every few seconds. */
+async function loadVersions(refresh) {
+  try {
+    const res = await fetch('/api/versions' + (refresh ? '?refresh=1' : ''));
+    const data = await res.json();
+    versions = data.versions || {};
+    const el = $('#side-version');
+    if (el && data.launcher_version) {
+      el.textContent = 'v' + data.launcher_version;
+      el.title = 'App Launcher v' + data.launcher_version;
+    }
+    render();
+  } catch { /* the column just stays blank */ }
+}
+
+/* An app the launcher did not start: identified by its port or a recorded pid
+   rather than by a command line we launched. It runs fine -- but its output is
+   not being captured, which is invisible unless we say so. */
+function isExternal(a) {
+  return a.running && a.via !== 'match';
+}
+
+const EXTERNAL_HELP = 'started outside the launcher, so its output is going to whatever shell started it and nothing is captured here. Restart it from the launcher to capture logs.';
+
+function externalBadge() {
+  const tag = document.createElement('span');
+  tag.className = 'tag external';
+  tag.textContent = 'external';
+  tag.title = EXTERNAL_HELP;
+  return tag;
+}
+
+function versionOf(name) {
+  return (versions[name] || {}).version || '';
+}
+
+function versionSource(name) {
+  const v = versions[name] || {};
+  return v.version ? 'version from ' + v.source : 'no version source found';
+}
+
 /* ------------------------------------------------------------------ data */
 
 async function refresh() {
@@ -732,6 +798,7 @@ async function act(action, name, btn) {
     // memory of what it loaded and let render() point it at the app again.
     if (action === 'restart' || action === 'stop') framedName = null;
     refresh();
+    loadVersions();
   }
 }
 
@@ -796,7 +863,10 @@ window.addEventListener('hashchange', render);
 
 // These live in the launcher's dashboard, which the status page doesn't have.
 const refreshBtn = $('#refresh');
-if (refreshBtn) refreshBtn.addEventListener('click', refresh);
+if (refreshBtn) refreshBtn.addEventListener('click', () => {
+  refresh();
+  loadVersions(true);      // an app may have been rebuilt under us
+});
 const dashAdd = $('#dash-add');
 if (dashAdd) dashAdd.addEventListener('click', () => openForm(null));
 $$('[data-view]').forEach(b => b.addEventListener('click', () => setLayout(b.dataset.view)));
@@ -849,6 +919,8 @@ function openForm(app) {
     form.url.value = editing.url || '';
     form.description.value = editing.description || '';
     form.match.value = editing.match || '';
+    form.version.value = editing.version || '';
+    form.version_cmd.value = editing.version_cmd || '';
     form.autostart.checked = !!editing.autostart;
   } else {
     $('#form-title').textContent = 'Register an app';
@@ -882,6 +954,8 @@ if (dialog) {
       port: fd.get('port'),
       url: fd.get('url'),
       description: fd.get('description'),
+      version: fd.get('version'),
+      version_cmd: fd.get('version_cmd'),
       match: fd.get('match'),
       autostart: fd.get('autostart') === 'on',
     };
@@ -931,6 +1005,7 @@ function handleFormLink() {
 
 apps = initial();
 render();
+loadVersions();
 handleFormLink();
 setInterval(refresh, POLL_MS);
 refresh();

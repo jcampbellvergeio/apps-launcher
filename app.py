@@ -157,7 +157,23 @@ def status_page():
 
 @app.route("/api/status")
 def api_status():
-    return jsonify({"apps": app_view(), "at": time.time()})
+    return jsonify({"apps": app_view(), "at": time.time(),
+                    "launcher_version": engine.VERSION})
+
+
+@app.route("/api/versions")
+def api_versions():
+    """Per-app versions, on their own endpoint.
+
+    Resolving a version can mean running a command or shelling out to git, so
+    this is deliberately not part of the status sweep the page polls every few
+    seconds. The page asks once on load and after anything that could change
+    the answer.
+    """
+    if request.args.get("refresh"):
+        engine.forget_version()
+    return jsonify({"ok": True, "versions": engine.versions(),
+                    "launcher_version": engine.VERSION})
 
 
 @app.route("/api/action/<action>", methods=["POST"])
@@ -190,6 +206,8 @@ def api_action(action, name=None):
             ok_all = ok_all and ok
 
     invalidate_status()
+    for target in targets:
+        engine.forget_version(target.get("name"))
     return jsonify({"ok": ok_all, "output": "\n".join(lines)})
 
 
@@ -353,6 +371,11 @@ def parse_fields(data, cfg, current=None):
     fields["description"] = (data.get("description") or "").strip()
     fields["autostart"] = bool(data.get("autostart", True))
 
+    # Optional version sources. `version` is a literal; `version_cmd` is run in
+    # the app's folder, and only ever because it was configured here.
+    fields["version"] = (str(data.get("version") or "")).strip()[:60]
+    fields["version_cmd"] = (str(data.get("version_cmd") or "")).strip()[:200]
+
     warning = None
     if port in UNSAFE_PORTS:
         # Not fatal: a non-browser app is free to use it. But say so now rather
@@ -447,6 +470,8 @@ def api_update(name):
     entry.update(fields)
     save_registry(cfg)
     invalidate_status()
+    engine.forget_version(name)
+    engine.forget_version(entry["name"])
 
     final = entry["name"]
     if relaunch:

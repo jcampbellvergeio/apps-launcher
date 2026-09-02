@@ -83,6 +83,17 @@
       <input name="description" placeholder="what it is">
     </label>
 
+    <div class="row">
+      <label>Version <span class="opt">optional</span>
+        <input name="version" placeholder="blank = detect it">
+        <small>A literal, used as typed.</small>
+      </label>
+      <label>Version command <span class="opt">optional</span>
+        <input name="version_cmd" placeholder="python app.py --version">
+        <small>Run in the app's folder. Nothing runs unless you set this.</small>
+      </label>
+    </div>
+
     <label>Match pattern <span class="opt">optional</span>
       <input name="match" placeholder="derived from path + arguments">
       <small>Regex vs the process command line. No backslashes &mdash; use

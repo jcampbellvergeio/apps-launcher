@@ -22,6 +22,8 @@ import sys
 import time
 from xml.sax.saxutils import escape as xml_escape
 
+VERSION = "1.1.0"
+
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PARENT = os.path.dirname(ROOT)           # relative `dir` values resolve against this
 APPS_JSON = os.path.join(ROOT, "apps.json")
@@ -41,6 +43,11 @@ LOGON_DELAY = 30                         # seconds; see install_autostart()
 
 SELF_TYPE = "self"
 SELF_NAME = "launcher"                   # fallback for a registry predating `type`
+
+try:                                     # 3.11+; only used to read pyproject
+    import tomllib
+except Exception:                        # pragma: no cover
+    tomllib = None
 
 try:                                     # optional, and only ever a fast path
     import psutil
@@ -156,6 +163,132 @@ def rename_side_files(old, new, entry):
             problems.append("could not move %s%s (%s)"
                             % (old, suffix, exc.__class__.__name__))
     return problems
+
+
+# --------------------------------------------------------------------------- #
+# versions
+#
+# There is no universal way to ask "what version is this app?", so the resolver
+# walks an explicit order and reports which source answered. Nothing is executed
+# unless the registry opted in with `version_cmd`: guessing at a command to run
+# would be both unreliable and a way to run something unexpected.
+# --------------------------------------------------------------------------- #
+
+_version_cache = {}          # name -> (expires_at, {version, source})
+VERSION_TTL = 300.0          # seconds; a version rarely changes under you
+
+
+def _first_line(text):
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if line:
+            return line[:60]
+    return ""
+
+
+def _version_from_files(workdir):
+    for filename in ("VERSION", "VERSION.txt", "version.txt"):
+        path = os.path.join(workdir, filename)
+        if os.path.exists(path):
+            try:
+                with open(path, encoding="utf-8", errors="replace") as fh:
+                    value = _first_line(fh.read())
+                if value:
+                    return value, filename
+            except OSError:
+                pass
+
+    path = os.path.join(workdir, "package.json")
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8-sig") as fh:
+                value = (json.load(fh) or {}).get("version")
+            if value:
+                return str(value)[:60], "package.json"
+        except (OSError, ValueError):
+            pass
+
+    path = os.path.join(workdir, "pyproject.toml")
+    if os.path.exists(path) and tomllib is not None:
+        try:
+            with open(path, "rb") as fh:
+                data = tomllib.load(fh)
+            value = ((data.get("project") or {}).get("version")
+                     or ((data.get("tool") or {}).get("poetry") or {}).get("version"))
+            if value:
+                return str(value)[:60], "pyproject.toml"
+        except (OSError, ValueError):
+            pass
+    return None, None
+
+
+def _version_from_git(workdir):
+    if not os.path.isdir(os.path.join(workdir, ".git")):
+        return None, None
+    if not shutil.which("git"):
+        return None, None
+    try:
+        res = subprocess.run(
+            ["git", "-C", workdir, "describe", "--tags", "--always", "--dirty"],
+            capture_output=True, text=True, timeout=10,
+            creationflags=0x08000000 if WINDOWS else 0)
+    except (OSError, subprocess.SubprocessError):
+        return None, None
+    value = _first_line(res.stdout)
+    return (value, "git describe") if value else (None, None)
+
+
+def app_version(entry, use_cache=True):
+    """{version, source} for one app. Empty version means "not determinable"."""
+    name = entry.get("name") or ""
+    if use_cache:
+        cached = _version_cache.get(name)
+        if cached and cached[0] > time.time():
+            return cached[1]
+
+    result = {"version": "", "source": ""}
+
+    if is_self_entry(entry):
+        result = {"version": VERSION, "source": "App Launcher"}
+    elif entry.get("version"):
+        # A literal in the registry: whatever you typed, used as-is.
+        result = {"version": str(entry["version"])[:60], "source": "registry"}
+    else:
+        workdir = app_dir(entry)
+        cmd = entry.get("version_cmd")
+        if cmd and os.path.isdir(workdir):
+            try:
+                res = subprocess.run(
+                    cmd, shell=True, cwd=workdir, capture_output=True, text=True,
+                    timeout=10, stdin=subprocess.DEVNULL,
+                    creationflags=0x08000000 if WINDOWS else 0)
+                # Some tools print their version to stderr.
+                value = _first_line(res.stdout) or _first_line(res.stderr)
+                if value:
+                    result = {"version": value, "source": "version_cmd"}
+            except (OSError, subprocess.SubprocessError):
+                pass
+        if not result["version"] and os.path.isdir(workdir):
+            value, source = _version_from_files(workdir)
+            if not value:
+                value, source = _version_from_git(workdir)
+            if value:
+                result = {"version": value, "source": source}
+
+    _version_cache[name] = (time.time() + VERSION_TTL, result)
+    return result
+
+
+def forget_version(name=None):
+    """Drop cached versions -- after a restart or an edit, the answer may differ."""
+    if name is None:
+        _version_cache.clear()
+    else:
+        _version_cache.pop(name, None)
+
+
+def versions(cfg=None):
+    return {e.get("name"): app_version(e) for e in apps(cfg or load_registry())}
 
 
 # --------------------------------------------------------------------------- #

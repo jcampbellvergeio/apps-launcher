@@ -27,7 +27,8 @@
             "autostart": true,
             "description": "An example Flask app, one folder up from launcher/",
             "match": "ExampleApi.app[.]py",
-            "type": "app"
+            "type": "app",
+            "version_cmd": "python app.py --version"
         },
         {
             "name": "example-node",
@@ -41,7 +42,8 @@
             "autostart": false,
             "description": "Anything you can start from a command line works",
             "match": "ExampleNode.server[.]js",
-            "type": "app"
+            "type": "app",
+            "version": "2.4.0"
         }
     ]
 }

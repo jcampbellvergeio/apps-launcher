@@ -169,6 +169,16 @@ a { color: var(--accent); }
 .side-apps .side-item:active { cursor: grabbing; }
 
 .side-foot { margin-top: auto; padding: 8px; border-top: 1px solid var(--line); }
+.side-version {
+  padding: 6px 10px 2px;
+  color: var(--off);
+  font-size: 11px;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  white-space: nowrap;
+  overflow: hidden;
+}
+/* In rail mode there is no room for the name, so just the number, centred. */
+.rail .side-version { padding: 6px 0 2px; text-align: center; font-size: 10px; }
 .add-item { color: var(--accent); }
 .add-item .glyph { font-size: 17px; }
 
@@ -274,7 +284,7 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
    columns to its left whenever a row had fewer of them. */
 .applist-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 160px 158px 72px 300px;
+  grid-template-columns: minmax(0, 1fr) 150px 104px 150px 72px 300px;
   align-items: center;
   gap: 12px;
   padding: 11px 14px;
@@ -311,6 +321,16 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
 .row-endpoint.none { color: var(--off); }
 .row-endpoint:hover { text-decoration: underline; }
 
+.row-version {
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 12px;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.row-version.none { color: var(--off); }
+
 .row-state {
   display: flex;
   align-items: center;
@@ -346,9 +366,13 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
 
 /* Drop a column at a time as the window narrows, template and cell together --
    hiding a cell without shortening the template leaves a hole. */
-@media (max-width: 1180px) {
-  .applist-row { grid-template-columns: minmax(0, 1fr) 158px 72px 300px; }
+@media (max-width: 1280px) {
+  .applist-row { grid-template-columns: minmax(0, 1fr) 104px 150px 72px 300px; }
   .row-endpoint { display: none; }
+}
+@media (max-width: 1040px) {
+  .applist-row { grid-template-columns: minmax(0, 1fr) 150px 72px 300px; }
+  .row-version { display: none; }
 }
 @media (max-width: 900px) {
   .applist-row { grid-template-columns: minmax(0, 1fr) 72px 300px; }
@@ -412,6 +436,10 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
   color: var(--dim);
 }
 .tag.auto { color: var(--accent); border-color: #26445f; }
+/* Not an error -- the app is running. It just isn't ours, so its output
+   is not being captured. */
+.tag.external { color: var(--warn); border-color: #5c4426; cursor: help; }
+.external-text { color: var(--warn); cursor: help; }
 
 .tile-desc { color: var(--dim); font-size: 13px; min-height: 20px; }
 
