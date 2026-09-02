@@ -101,10 +101,9 @@ function sheet(title, body) {
 
 /* ------------------------------------------------------------------ sidebar */
 
-function renderSidebar(route) {
-  const nav = $('#side-apps');
-  nav.textContent = '';
-  apps.forEach(a => {
+/* One sidebar row. Split out of renderSidebar so processes and documents can
+   be listed in separate groups without duplicating the markup. */
+function sidebarItem(a, route) {
     const item = document.createElement('a');
     const active = a.is_self
       ? route.view === 'grid'                       // the dashboard itself
@@ -132,8 +131,26 @@ function renderSidebar(route) {
     dot.className = 'dot' + (a.is_file ? ' file' : a.running ? ' on' : '');
     item.appendChild(dot);
 
-    nav.appendChild(item);
-  });
+  return item;
+}
+
+/* Processes and documents are different kinds of thing -- one has a status and
+   can be started, the other cannot -- so they get their own groups rather than
+   one list in which half the rows carry a meaningless lamp. */
+function renderSidebar(route) {
+  const appsNav = $('#side-apps');
+  const filesNav = $('#side-files');
+  appsNav.textContent = '';
+  filesNav.textContent = '';
+
+  const processes = apps.filter(a => !a.is_file);
+  const files = apps.filter(a => a.is_file);
+  processes.forEach(a => appsNav.appendChild(sidebarItem(a, route)));
+  files.forEach(a => filesNav.appendChild(sidebarItem(a, route)));
+
+  // With nothing registered, the heading would just be noise.
+  $('#files-label').hidden = files.length === 0;
+  filesNav.hidden = files.length === 0;
 }
 
 /* Drag to reorder. Registry order is menu order, so a drop writes the new
@@ -170,7 +187,8 @@ function wireDrag(nav) {
     src = null;
     // Dedupe defensively: a mid-drag re-render can leave the same row twice.
     const seen = new Set();
-    const order = $$('.side-item', nav)
+    // Both groups in display order: apps-then-files is what the page shows.
+    const order = [...$$('#side-apps .side-item'), ...$$('#side-files .side-item')]
       .map(i => i.dataset.open)
       .filter(n => n && !seen.has(n) && seen.add(n));
     dragging = false;
@@ -190,6 +208,7 @@ function wireDrag(nav) {
 }
 
 wireDrag($('#side-apps'));
+wireDrag($('#side-files'));
 
 /* ------------------------------------------------------------------ viewer */
 
@@ -483,7 +502,22 @@ function renderList() {
   const list = $('#list');
   list.textContent = '';
 
-  apps.forEach(a => {
+  // Documents last, behind a divider: they have no status and nothing to
+  // start, so mixing them into the app rows makes both harder to read.
+  const ordered = [...apps.filter(a => !a.is_file), ...apps.filter(a => a.is_file)];
+  let dividerDone = false;
+
+  ordered.forEach(a => {
+    if (a.is_file && !dividerDone) {
+      dividerDone = true;
+      const head = document.createElement('div');
+      head.className = 'applist-head';
+      const label = document.createElement('div');
+      label.className = 'applist-section';
+      label.textContent = 'Files';
+      head.appendChild(label);
+      list.appendChild(head);
+    }
     const row = document.createElement('div');
     row.className = 'applist-row' + (a.path_exists ? '' : ' missing');
 
@@ -591,7 +625,9 @@ function setLayout(next) {
 function renderGrid() {
   const grid = $('#grid');
   grid.textContent = '';
-  apps.forEach(a => grid.appendChild(tile(a)));
+  // Documents after the apps here too, for the same reason.
+  [...apps.filter(a => !a.is_file), ...apps.filter(a => a.is_file)]
+    .forEach(a => grid.appendChild(tile(a)));
 
   const add = document.createElement('article');
   add.className = 'tile add';

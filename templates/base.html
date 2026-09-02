@@ -50,6 +50,11 @@
     <!-- Filled by app.js so the status dots stay live. -->
     <nav class="side-apps" id="side-apps"></nav>
 
+    <!-- Documents are a different kind of thing: no status, nothing to start.
+         Both this label and the list hide themselves when none are registered. -->
+    <div class="side-label" id="files-label" hidden><span class="label">Files</span></div>
+    <nav class="side-apps" id="side-files" hidden></nav>
+
     <div class="side-foot">
       <button class="side-item add-item" id="side-add" title="Register an app">
         <span class="glyph" aria-hidden="true">+</span>

@@ -277,8 +277,13 @@ report, a set of notes:
 }
 ```
 
-It appears in the menu and the list like anything else, with a **document**
-badge instead of a status lamp — "running" is meaningless for a file, so it
+Documents get **their own group in the menu**, under a `Files` heading below the
+apps, and sit behind a divider at the end of the list — a process and a document
+are different kinds of thing, and one list where half the rows carry a
+meaningless status lamp reads worse than two. The heading hides itself when
+nothing is registered.
+
+Each one shows a **document** badge instead of a status lamp — "running" is meaningless for a file, so it
 never claims to be stopped. **View** opens it in the pane; `Open ↗` opens a tab.
 Its version column shows the date the file last changed. Start, stop, restart
 and logs all refuse it by name rather than failing obscurely.

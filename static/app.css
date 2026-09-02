@@ -168,6 +168,11 @@ a { color: var(--accent); }
 .side-apps .side-item { cursor: grab; }
 .side-apps .side-item:active { cursor: grabbing; }
 
+/* The two groups share the scroll area; only the apps list grows, so a long
+   app list never pushes the files out of sight. */
+#side-apps { flex: 0 1 auto; }
+#side-files { flex: none; }
+
 .side-foot { margin-top: auto; padding: 8px; border-top: 1px solid var(--line); }
 .side-version {
   padding: 6px 10px 2px;
@@ -291,6 +296,22 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
   border-bottom: 1px solid var(--line);
 }
 .applist-row:last-child { border-bottom: 0; }
+
+/* A divider inside the list, so documents are visibly not processes. */
+.applist-section {
+  grid-column: 1 / -1;
+  padding: 4px 0 2px;
+  color: var(--off);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+.applist-head {
+  display: grid;
+  padding: 8px 14px 2px;
+  background: var(--panel-2);
+  border-bottom: 1px solid var(--line);
+}
 .applist-row:hover { background: var(--panel-2); }
 .applist-row.missing { box-shadow: inset 3px 0 0 var(--warn); }
 
