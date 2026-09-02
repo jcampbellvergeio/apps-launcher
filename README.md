@@ -55,7 +55,9 @@ Linux/macOS.
 `http://127.0.0.1:5058/` — the launcher registers itself, so the logon task
 brings the page up with everything else.
 
-**Left menu**: every app with its icon and a live status dot. `‹` collapses it to
+**Left menu**: every app with its icon and a live status dot, polled every 8
+seconds. A document's dot is green while its file is there and red once it
+isn't. `‹` collapses it to
 an icon rail (remembered per browser); drag the rows to reorder them, which also
 sets the order the logon task starts them in.
 
@@ -72,8 +74,6 @@ amber when the folder or file isn't there.
 **Any other app** opens embedded in a pane, with its own controls in the topbar
 and an `Open ↗` for a real tab. The selection lives in the URL hash
 (`#/app/<name>`), so a reload returns to it.
-
-`/status` is the same data as a table, with the signal behind each verdict.
 
 Bound to `127.0.0.1` only, deliberately: the page can start arbitrary commands,
 so it must not be reachable from the network. `LAUNCHER_HOST` overrides that and

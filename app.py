@@ -161,11 +161,6 @@ def index():
     return render_template("index.html", apps=app_view(), page="apps")
 
 
-@app.route("/status")
-def status_page():
-    return render_template("status.html", apps=app_view(), page="status")
-
-
 # --------------------------------------------------------------------------- #
 # api
 # --------------------------------------------------------------------------- #

@@ -1,6 +1,6 @@
 /* App Launcher UI.
  *
- * One render path per page, fed by /api/status. Actions post to /api/action/*
+ * Fed by /api/status. Actions post to /api/action/*
  * and then re-render, so what you see is always the script's own verdict
  * rather than an optimistic guess about what the click did.
  *
@@ -9,7 +9,6 @@
  * copied link lands back on the same app.
  */
 
-const PAGE = document.documentElement.dataset.page;
 const POLL_MS = 8000;   // a status sweep walks every process on the box; don't churn
 const RAIL_KEY = 'devapps.rail';
 const VIEW_KEY = 'devapps.view';   // 'list' (default) or 'grid'
@@ -50,16 +49,10 @@ function openApp(name) {
   // selecting it just shows the grid.
   const a = byName(name);
   if (a && a.is_self) return openGrid();
-  if (PAGE !== 'apps') {
-    // The viewer only exists on the tiles page; carry the selection there.
-    window.location.href = '/#/app/' + encodeURIComponent(name);
-    return;
-  }
   window.location.hash = '#/app/' + encodeURIComponent(name);
 }
 
 function openGrid() {
-  if (PAGE !== 'apps') { window.location.href = '/'; return; }
   // Replace, so Back doesn't bounce between grid and viewer forever.
   history.replaceState(null, '', window.location.pathname);
   render();
@@ -103,6 +96,13 @@ function sheet(title, body) {
 
 /* One sidebar row. Split out of renderSidebar so processes and documents can
    be listed in separate groups without duplicating the markup. */
+/* The status lamp. A document has no run state, so its lamp answers the only
+   question that applies to it: is the file still there? */
+function dotClass(a) {
+  if (a.is_file) return 'dot' + (a.file_exists ? ' on' : ' gone');
+  return 'dot' + (a.running ? ' on' : '');
+}
+
 function sidebarItem(a, route) {
     const item = document.createElement('a');
     const active = a.is_self
@@ -112,7 +112,9 @@ function sidebarItem(a, route) {
                    + (active ? ' on' : '');
     item.href = a.is_self ? '/' : '/#/app/' + encodeURIComponent(a.name);
     // Rail mode hides the label, so the tooltip carries the name and state.
-    item.title = a.name + ' — ' + (a.running ? 'running' : 'stopped');
+    item.title = a.name + ' — ' + (a.is_file
+      ? (a.file_exists ? 'file present' : 'file missing')
+      : a.running ? 'running' : 'stopped');
     item.dataset.open = a.name;
     item.draggable = true;
 
@@ -128,7 +130,7 @@ function sidebarItem(a, route) {
     item.appendChild(label);
 
     const dot = document.createElement('span');
-    dot.className = 'dot' + (a.is_file ? ' file' : a.running ? ' on' : '');
+    dot.className = dotClass(a);
     item.appendChild(dot);
 
   return item;
@@ -294,7 +296,7 @@ function setTopbar(a) {
   } else {
     icon.hidden = true;
   }
-  $('#tb-name').textContent = a ? a.name : (PAGE === 'status' ? 'Status' : 'Apps');
+  $('#tb-name').textContent = a ? a.name : 'Apps';
   const openVersion = a ? versionOf(a.name) : '';
   $('#tb-meta').textContent = a && a.is_file
     ? a.file + (a.file_exists ? '' : '  ·  MISSING')
@@ -430,7 +432,7 @@ function tile(a) {
   head.appendChild(name);
 
   const dot = document.createElement('span');
-  dot.className = 'dot' + (a.is_file ? ' file' : a.running ? ' on' : '');
+  dot.className = dotClass(a);
   head.appendChild(dot);
 
   const spacer = document.createElement('span');
@@ -603,7 +605,7 @@ function renderList() {
     const state = document.createElement('span');
     state.className = 'row-state' + (a.is_file ? ' file' : '');
     const dot = document.createElement('span');
-    dot.className = 'dot' + (a.running ? ' on' : '');
+    dot.className = dotClass(a);
     state.appendChild(dot);
     state.appendChild(document.createTextNode(
       a.is_file ? (a.file_exists ? 'file' : 'file missing')
@@ -675,94 +677,10 @@ function renderGrid() {
 
 /* ------------------------------------------------------------------ status */
 
-function renderTable() {
-  const body = $('#status-table tbody');
-  body.textContent = '';
-  apps.forEach(a => {
-    const tr = document.createElement('tr');
-    tr.id = 'app-' + a.name;
-
-    const cell = (html) => {
-      const td = document.createElement('td');
-      td.innerHTML = html;
-      tr.appendChild(td);
-      return td;
-    };
-    const text = (value, cls) => {
-      const td = document.createElement('td');
-      if (cls) td.className = cls;
-      td.textContent = value;
-      tr.appendChild(td);
-      return td;
-    };
-
-    const appCell = document.createElement('td');
-    appCell.className = 'app';
-    const icon = document.createElement('img');
-    icon.src = a.icon;
-    icon.alt = '';
-    appCell.appendChild(icon);
-    const link = document.createElement('a');
-    link.href = '/#/app/' + encodeURIComponent(a.name);
-    link.textContent = a.name;
-    link.dataset.open = a.name;
-    appCell.appendChild(link);
-    tr.appendChild(appCell);
-
-    const tableVersion = versionOf(a.name);
-    text(tableVersion || '\u2014', 'mono').title = versionSource(a.name);
-
-    cell('<span class="state"><span class="dot' + (a.running ? ' on' : '') + '"></span>' +
-         (a.running ? 'running' : 'stopped') + '</span>');
-    const viaCell = cell('<span class="via">' + (a.running ? a.via : '—') + '</span>');
-    if (isExternal(a)) {
-      viaCell.title = EXTERNAL_HELP;
-      viaCell.firstChild.className = 'via external-text';
-    }
-    text(a.running ? String(a.pid) : '—', 'mono');
-    text(a.port ? String(a.port) : '—', 'mono');
-
-    if (a.url) {
-      const td = document.createElement('td');
-      const out = document.createElement('a');
-      out.href = a.url;
-      out.target = '_blank';
-      out.rel = 'noopener';
-      out.textContent = a.url;
-      td.appendChild(out);
-      tr.appendChild(td);
-    } else {
-      text('—', 'no');
-    }
-
-    text(a.autostart ? 'yes' : 'no');
-    const path = text(a.path, 'path');
-    if (!a.path_exists) {
-      path.textContent = a.path + '  (missing)';
-      path.style.color = 'var(--warn)';
-    }
-
-    const td = document.createElement('td');
-    const b = actionButton(a.running ? 'Stop' : 'Start', a.running ? 'stop' : 'start', a.name);
-    if (a.is_self && a.running) b.disabled = true;
-    td.appendChild(b);
-    tr.appendChild(td);
-
-    body.appendChild(tr);
-  });
-}
-
 /* ------------------------------------------------------------------ render */
 
 function render() {
   const route = currentRoute();
-
-  if (PAGE === 'status') {
-    renderTable();
-    renderSidebar(route);
-    setTopbar(null);
-    return;
-  }
 
   let selected = route.view === 'app' ? byName(route.name) : null;
   if (selected && selected.is_self) { openGrid(); return; }
@@ -1009,12 +927,6 @@ function applyFormType(kind) {
 }
 
 function openForm(app, kind) {
-  if (!dialog) {
-    // The form only lives on the tiles page; from /status, go there and open it.
-    window.location.href = app ? '/#edit/' + encodeURIComponent(app.name)
-                              : (kind === 'file' ? '/#addfile' : '/#add');
-    return;
-  }
   const form = $('#add-form');
   editing = app || null;
   $('#add-err').hidden = true;
