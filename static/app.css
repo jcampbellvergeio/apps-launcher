@@ -289,7 +289,7 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
    columns to its left whenever a row had fewer of them. */
 .applist-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) 138px 100px 148px 72px 300px;
+  grid-template-columns: minmax(0, 1.4fr) 132px 96px 168px 76px 300px;
   align-items: center;
   gap: 12px;
   padding: 11px 14px;
@@ -386,7 +386,12 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
   font-size: 12.5px;
   color: var(--dim);
   white-space: nowrap;
+  /* Belt and braces: a grid cell does not clip by default, so anything that
+     outgrows this column would sit on top of the next one. */
+  min-width: 0;
+  overflow: hidden;
 }
+.row-state .tag { flex: none; }
 
 .row-actions {
   display: flex;
@@ -454,7 +459,7 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
 .tile.missing { border-color: #5c4426; }
 .tile.flash { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(90, 169, 255, .12); }
 
-.tile-head { display: flex; align-items: center; gap: 10px; }
+.tile-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .tile-badge {
   width: 34px; height: 34px;
   flex: none;
@@ -465,7 +470,14 @@ body.viewing main { max-width: none; padding-bottom: 20px; }
   border: 1px solid var(--line);
 }
 .tile-badge img { width: 21px; height: 21px; }
-.tile-name { font-weight: 600; font-size: 15px; }
+.tile-name {
+  font-weight: 600;
+  font-size: 15px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .tile-head .spacer { margin-left: auto; }
 
 .dot {

@@ -609,7 +609,9 @@ function renderList() {
     state.appendChild(dot);
     state.appendChild(document.createTextNode(
       a.is_file ? (a.file_exists ? 'file' : 'file missing')
-                : a.running ? 'running \u00b7 pid ' + a.pid : 'stopped'));
+                : !a.running ? 'stopped'
+                : isExternal(a) ? 'pid ' + a.pid          // the badge says "running"
+                : 'running · pid ' + a.pid));
     if (isExternal(a)) state.appendChild(externalBadge());
     row.appendChild(state);
 
