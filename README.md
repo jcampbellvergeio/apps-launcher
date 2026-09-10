@@ -375,6 +375,13 @@ CSP `frame-ancestors` means the browser refuses the frame *silently*, so the pan
 names the header and offers a new tab instead. HTTPS apps get a warning too — a
 self-signed certificate can only be accepted in a real tab, never in a frame.
 
+**Apps get an invisible console on Windows, not no console.** `CREATE_NO_WINDOW`
+rather than `DETACHED_PROCESS`: both hide the app's own window, but detaching
+leaves it with no console at all, so the moment that app spawns a child of its
+own — a Flask reloader, an npm wrapper — Windows hands the child a brand-new
+console *window*, because there was none to inherit. An invisible console is
+inherited quietly.
+
 **The engine spawns apps itself rather than through a shell**, and that is not
 incidental. An earlier version shelled out to PowerShell, whose child inherited
 the captured stdout pipe — so the pipe never reached EOF while the started app

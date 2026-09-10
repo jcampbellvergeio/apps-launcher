@@ -228,6 +228,13 @@ def main():
     ok, rendered = engine.install_autostart(dry_run=True)
     check("autostart dry-run renders", ok and len(rendered) > 40, rendered[:120])
     if sys.platform.startswith("win"):
+        # DETACHED_PROCESS leaves a started app with no console, so any child
+        # IT spawns gets a visible console window. This is a flag check rather
+        # than a UI one because a stray window cannot be seen from a test.
+        check("windows: apps get a hidden console, not none",
+              engine.SPAWN_FLAGS & engine.CREATE_NO_WINDOW
+              and not engine.SPAWN_FLAGS & 0x00000008,
+              hex(engine.SPAWN_FLAGS))
         # PowerShell, not schtasks: schtasks /Create is denied to an
         # unelevated user, and a per-user login item must not need an admin
         # prompt.

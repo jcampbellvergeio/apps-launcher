@@ -44,6 +44,22 @@ SERVICE_NAME = "app-launcher"            # systemd --user unit
 AGENT_LABEL = "io.github.apps-launcher"  # launchd LaunchAgent
 LOGON_DELAY = 30                         # seconds; see install_autostart()
 
+# Windows console flags for a started app.
+#
+# CREATE_NO_WINDOW, not DETACHED_PROCESS. Both hide the app's own console, but
+# DETACHED_PROCESS leaves the app with NO console -- so the moment that app
+# spawns a child of its own (a Flask reloader, an npm wrapper, a helper), the
+# child gets a brand-new console WINDOW, because there was none to inherit.
+# CREATE_NO_WINDOW gives the app an invisible console instead, which its
+# children inherit, so nothing appears on screen. The PowerShell engine got
+# this right via -WindowStyle Hidden; the Python port regressed it.
+#
+# CREATE_NEW_PROCESS_GROUP keeps a Ctrl+C in whatever console started the
+# launcher from reaching the apps. Neither flag affects whether they outlive it.
+CREATE_NEW_PROCESS_GROUP = 0x00000200
+CREATE_NO_WINDOW = 0x08000000
+SPAWN_FLAGS = CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP
+
 SELF_TYPE = "self"
 FILE_TYPE = "file"                       # a document, not a process
 SELF_NAME = "launcher"                   # fallback for a registry predating `type`
@@ -293,7 +309,7 @@ def _version_from_git(workdir):
         res = subprocess.run(
             ["git", "-C", workdir, "describe", "--tags", "--always", "--dirty"],
             capture_output=True, text=True, timeout=10,
-            creationflags=0x08000000 if WINDOWS else 0)
+            creationflags=CREATE_NO_WINDOW if WINDOWS else 0)
     except (OSError, subprocess.SubprocessError):
         return None, None
     value = _first_line(res.stdout)
@@ -328,7 +344,7 @@ def app_version(entry, use_cache=True):
                 res = subprocess.run(
                     cmd, shell=True, cwd=workdir, capture_output=True, text=True,
                     timeout=10, stdin=subprocess.DEVNULL,
-                    creationflags=0x08000000 if WINDOWS else 0)
+                    creationflags=CREATE_NO_WINDOW if WINDOWS else 0)
                 # Some tools print their version to stderr.
                 value = _first_line(res.stdout) or _first_line(res.stderr)
                 if value:
@@ -410,7 +426,7 @@ def _processes_windows():
             ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
              "-Command", script],
             capture_output=True, text=True, timeout=60,
-            creationflags=0x08000000)          # CREATE_NO_WINDOW
+            creationflags=CREATE_NO_WINDOW)
     except (OSError, subprocess.SubprocessError):
         return []
     out = []
@@ -479,7 +495,7 @@ def port_owner(port):
                 ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
                  "-Command", script],
                 capture_output=True, text=True, timeout=30,
-                creationflags=0x08000000)
+                creationflags=CREATE_NO_WINDOW)
             value = res.stdout.strip()
             return int(value) if value.isdigit() else None
         except (OSError, subprocess.SubprocessError, ValueError):
@@ -747,8 +763,7 @@ def start_app(entry):
     err_path = os.path.join(LOG_DIR, name + ".err.log")
     kwargs = {"cwd": workdir, "stdin": subprocess.DEVNULL}
     if WINDOWS:
-        # DETACHED_PROCESS: no console of its own, and it outlives us.
-        kwargs["creationflags"] = 0x00000008 | 0x00000200   # + NEW_PROCESS_GROUP
+        kwargs["creationflags"] = SPAWN_FLAGS
     else:
         # Its own session, so it survives this process and can be signalled as
         # a group (a dev server's reloader child included).
@@ -806,7 +821,7 @@ def _terminate(pid):
     if WINDOWS:
         res = subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"],
                              capture_output=True, text=True,
-                             creationflags=0x08000000)
+                             creationflags=CREATE_NO_WINDOW)
         _reap(pid)
         return res.returncode == 0
 
@@ -1003,7 +1018,7 @@ def install_autostart(dry_run=False):
         res = subprocess.run(
             ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
              "-Command", script],
-            capture_output=True, text=True, creationflags=0x08000000)
+            capture_output=True, text=True, creationflags=CREATE_NO_WINDOW)
         if res.returncode != 0:
             return False, (res.stderr or res.stdout).strip()
         return True, "registered scheduled task '%s'" % TASK_NAME
@@ -1053,7 +1068,7 @@ def uninstall_autostart():
                  "-Command",
                  "Unregister-ScheduledTask -TaskName '%s' -Confirm:$false"
                  % task.replace("'", "''")],
-                capture_output=True, text=True, creationflags=0x08000000)
+                capture_output=True, text=True, creationflags=CREATE_NO_WINDOW)
             if res.returncode == 0:
                 removed.append(task)
         return True, ("removed " + ", ".join("'%s'" % t for t in removed)

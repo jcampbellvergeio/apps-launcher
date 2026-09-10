@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- **No stray console windows on Windows.** Apps are started with
+  `CREATE_NO_WINDOW` instead of `DETACHED_PROCESS`. Both hide the app's own
+  console, but detaching left it with *none* — so an app that spawns a child of
+  its own (VergeMon's Flask reloader, an npm wrapper) had that child handed a
+  brand-new console window, because there was nothing to inherit. The
+  PowerShell engine avoided this via `-WindowStyle Hidden`; the Python port
+  regressed it.
+- The list has an **Apps** header to match Files, and the dialog pins its
+  buttons so Cancel and Save stay reachable on a long form.
+- `docs/sample.html` is generated from the real templates by
+  `docs/make_sample.py`, with a CI check that it has not gone stale, and
+  `docs/sample.png` is in the README.
+
 ## v1.2.0
 
 **Display names.** An entry now has a `label` for humans and an `id` for
